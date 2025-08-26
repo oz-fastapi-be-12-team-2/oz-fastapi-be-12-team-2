@@ -57,6 +57,13 @@ jobs:
         run: |
           uv sync --dev-packages
 
+      - name: Create .env file for docker-compose
+        run: |
+          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
+          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+          echo "DB_PORT=5432" >> .env
+
       # ruff로 import 정렬 및 코드 스타일 검사
       - name: Run ruff (Code quality check)
         run: |
