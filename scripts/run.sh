@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+# (필요시) 마이그레이션 수행 (aerich 등)
+aerich upgrade
+
+# FastAPI 앱 실행 (개발용 --reload 포함)
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

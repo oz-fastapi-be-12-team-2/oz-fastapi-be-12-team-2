@@ -3,7 +3,7 @@ name = "fastapi-team-project"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = "==3.13"
+requires-python = ">=3.13"
 dependencies = [
     "aerich==0.9.1",
     "asyncpg==0.30.0",
@@ -15,5 +15,15 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "autoflake==2.3.1",
+    "black==25.1.0",
+    "flake8==7.3.0",
+    "isort==6.0.1",
+    "pre-commit==4.3.0",
+    "pytest==8.4.1",
     "ruff==0.12.10",
 ]
+
+[tool.ruff]
+python_version = 3.13
+line-length = 120
