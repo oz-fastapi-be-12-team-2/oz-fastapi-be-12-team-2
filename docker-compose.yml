@@ -17,7 +17,7 @@ services:
 
   web:
     build: .
-    command: /scripts/run.sh
+    command: /app/scripts/run.sh
     env_file:
       - .env
     ports:
