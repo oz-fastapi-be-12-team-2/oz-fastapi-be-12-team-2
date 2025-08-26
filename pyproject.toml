@@ -25,5 +25,4 @@ dev = [
 ]
 
 [tool.ruff]
-python_version = 3.13
 line-length = 120
