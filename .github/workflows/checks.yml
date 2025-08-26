@@ -94,7 +94,7 @@ jobs:
       # 정상적인 db 연결을 확인했으니 마이그레이션 수행
       - name: Run aerich migrations
         run: |
-          uv run aerich -t init
+          uv run aerich init -t app.models.
           uv run aerich upgrade
 
       # FastAPI에서 pytest로 테스트를 실행합니다.
