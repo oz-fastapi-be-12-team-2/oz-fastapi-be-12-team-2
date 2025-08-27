@@ -1,4 +1,4 @@
-from tortoise import fields, models
+from tortoise import fields
 from tortoise.models import Model
 
 from enum import StrEnum
@@ -20,9 +20,11 @@ class Diary(TimestampMixin, Model):
     emotion_analysis = fields.TextField(null=True)
     main_emotion = fields.CharEnumField(enum_type=MainEmotion, null=True)  # ENUM
 
-    user : fields.ForeignKeyRelation("user.User", related_name="diaries", on_delete="CASCADE")
+    user: fields.ForeignKeyRelation(
+        "user.User", related_name="diaries", on_delete="CASCADE"
+    )
     images: fields.ReverseRelation["Image"]
-    tags : fields.ManyToManyRelation["Tag"] = fields.ManyToManyField(
+    tags: fields.ManyToManyRelation["Tag"] = fields.ManyToManyField(
         "models.Tag", related_name="diaries", through="diary_tag"
     )
 
