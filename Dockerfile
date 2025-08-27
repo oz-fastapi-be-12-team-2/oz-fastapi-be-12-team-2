@@ -31,4 +31,5 @@ COPY ./scripts ./scripts
 RUN chmod +x ./scripts/run.sh
 
 # run.sh 실행
-CMD ["/scripts/run.sh"]
+CMD ["uv","run","sh","/app/scripts/run.sh"]
+# "uv", "run","sh", 절대경로 변경 /app

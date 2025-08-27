@@ -24,8 +24,9 @@ services:
       - "8000:8000"
     depends_on:
       - db
-    volumes:
+    volumes:         # permission denied 발생 원인 / 컨테이너 생성 이후 실행시점 호스트 파일 시스템 그대로 덮어쓰기가 일어나서 권한 사라짐
       - .:/app
+      - ./scripts/run.sh:/app/scripts/run.sh:ro # permission denied error 없애준다는데 시도못해봄
 
 volumes:
   postgres_data:
