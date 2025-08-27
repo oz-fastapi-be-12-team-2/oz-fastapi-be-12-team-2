@@ -3,7 +3,8 @@ from enum import StrEnum
 from tortoise import fields
 from tortoise.models import Model
 
-from app.shared.models import TimestampMixin
+from app.shared.model import TimestampMixin
+from app.user.model import User
 
 
 class AlertType(StrEnum):
@@ -14,9 +15,15 @@ class AlertType(StrEnum):
 
 class Notification(Model, TimestampMixin):
     alert_id = fields.BigIntField(pk=True)
-    content = fields.CharField(max_length=255)
+    content = fields.CharField(max_length=255, null=True)
     alert_type = fields.CharEnumField(AlertType)
 
+    user: fields.ManyToManyRelation["User"] = fields.ForeignKeyField(
+        "models.User", related_name="notifications", on_delete=fields.CASCADE
+    )
 
-class Meta:
-    table = "감정 알림"
+    def __str__(self):
+        return f"Notification(id={self.alert_id}, content={self.content})"
+
+    class Meta:
+        table = "감정 알림"

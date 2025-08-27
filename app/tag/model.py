@@ -1,5 +1,6 @@
 from tortoise import fields
 from tortoise.models import Model
+from app.diary.model import Diary
 
 class Tag(Model):
     tag_id = fields.BigIntField(pk=True, generated=True)  # 태그 ID, AUTO_INCREMENT
