@@ -3,7 +3,6 @@ from enum import StrEnum
 from tortoise import fields
 from tortoise.models import Model
 
-from app.notification.model import Notification
 from app.shared.model import TimestampMixin
 
 

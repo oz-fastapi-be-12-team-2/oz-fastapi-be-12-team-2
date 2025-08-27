@@ -4,7 +4,6 @@ from tortoise import fields
 from tortoise.models import Model
 
 from app.shared.model import TimestampMixin
-from app.user.model import User
 
 
 class AlertType(StrEnum):
