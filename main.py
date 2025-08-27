@@ -40,3 +40,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# lifespan check
+
+# app.get("/lifespancheck")
+# async def db_check():
+#   async with in_transaction() as conn:
+#       result = await conn.execute_query("SELECT 1")
+#     return {"db_ok": result[0][0] == 1}

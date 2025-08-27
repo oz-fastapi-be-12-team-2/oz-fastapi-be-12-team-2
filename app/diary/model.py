@@ -4,8 +4,8 @@ from tortoise import fields
 from tortoise.models import Model
 
 from app.shared.models import TimestampMixin
-from app.tag import Tag
-from app.user import User
+from app.tag.model import Tag
+from app.user.model import User
 
 
 class MainEmotion(StrEnum):
