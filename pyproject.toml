@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "aerich==0.9.1",
     "asyncpg==0.30.0",
+    "coverage==7.10.5",
     "fastapi==0.116.1",
     "mypy==1.17.1",
     "python-dotenv==1.1.1",

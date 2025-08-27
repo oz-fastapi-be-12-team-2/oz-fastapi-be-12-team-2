@@ -13,12 +13,12 @@ class AlertType(StrEnum):
     SMS = "SMS"
 
 
-class Notification(Model, TimestampMixin):
+class Notification(TimestampMixin, Model):
     alert_id = fields.BigIntField(pk=True)
     content = fields.CharField(max_length=255, null=True)
     alert_type = fields.CharEnumField(AlertType)
 
-    user: fields.ManyToManyRelation["User"] = fields.ForeignKeyField(
+    user: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
         "models.User", related_name="notifications", on_delete=fields.CASCADE
     )
 
