@@ -3,7 +3,7 @@ set -e
 
 # 초기화는 처음 한 번만
 #uv run aerich init -t core.config.TORTOISE_ORM
-uv run aerich init-db
+#uv run aerich init-db
 
 # (필요시) 마이그레이션 수행 (aerich 등)
 # aerich 초기화 (한 번만)
