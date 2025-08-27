@@ -18,11 +18,11 @@ class Notification(TimestampMixin, Model):
     alert_type = fields.CharEnumField(AlertType)
 
     user: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
-        "models.User", related_name="notifications", on_delete=fields.CASCADE
+        "models.User", related_name="notifications", on_delete=fields.CASCADE, through="notification_users"
     )
 
     def __str__(self):
         return f"Notification(id={self.alert_id}, content={self.content})"
 
     class Meta:
-        table = "감정 알림"
+        table = "notifications"
