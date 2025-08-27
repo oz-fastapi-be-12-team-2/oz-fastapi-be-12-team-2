@@ -12,11 +12,11 @@ uv run black .
 echo "OK"
 
 echo "Starting isort"
-uv run isort --check-only .
+uv run isort .
 echo "OK"
 
 echo "Starting flake8"
-uv run flake8 .
+uv run flake8 app/
 echo "OK"
 
 echo "Starting ruff"

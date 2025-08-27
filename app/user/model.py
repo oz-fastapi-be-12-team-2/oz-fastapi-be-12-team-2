@@ -3,6 +3,7 @@ from enum import StrEnum
 from tortoise import fields
 from tortoise.models import Model
 
+from app.notification.model import Notification
 from app.shared.model import TimestampMixin
 
 
@@ -24,6 +25,8 @@ class User(TimestampMixin, Model):
     user_roles = fields.CharEnumField(
         enum_type=UserRole, default=UserRole.USER
     )  # 유저 권한
+
+    notifications: fields.ManyToManyRelation["Notification"]
 
     class Meta:
         table = "users"
