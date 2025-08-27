@@ -6,8 +6,11 @@ set -e
 uv run aerich init-db
 
 # (필요시) 마이그레이션 수행 (aerich 등)
-uv run aerich migrate
-uv run aerich upgrade
+# aerich 초기화 (한 번만)
+uv run aerich init -t core.config.TORTOISE_ORM || true
+uv run aerich init-db || true
+uv run aerich migrate || true
+uv run aerich upgrade || true
 
 # FastAPI 앱 실행 (개발용 --reload 포함)
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
