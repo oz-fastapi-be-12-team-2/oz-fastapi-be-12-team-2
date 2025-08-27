@@ -3,6 +3,8 @@ from enum import StrEnum
 from tortoise import fields
 from tortoise.models import Model
 
+from app.shared.models import TimestampMixin
+
 
 class UserRole(StrEnum):
     USER = "user"
@@ -10,7 +12,7 @@ class UserRole(StrEnum):
     SUPERUSER = "superuser"
 
 
-class User(Model):
+class User(TimestampMixin, Model):
     id = fields.BigIntField(pk=True, generated=True)  # 사용자 ID, AUTO_INCREMENT
     nickname = fields.CharField(max_length=20, unique=True)  # 로그인 ID
     email = fields.CharField(max_length=100, unique=True)  # 이메일
@@ -19,8 +21,6 @@ class User(Model):
     phonenumber = fields.CharField(max_length=20)  # 연락처
     lastlogin = fields.DatetimeField(null=True)  # 마지막 로그인
     account_activation = fields.BooleanField(default=False)  # 계정 활성화 여부
-    created_at = fields.DatetimeField(auto_now_add=True)  # 생성일
-    updated_at = fields.DatetimeField(auto_now=True)  # 수정일
     user_roles = fields.CharEnumField(
         enum_type=UserRole, default=UserRole.USER
     )  # 유저 권한
