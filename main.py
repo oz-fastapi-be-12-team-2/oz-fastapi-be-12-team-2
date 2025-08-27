@@ -1,11 +1,14 @@
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
 import asyncio
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
+
 from core.config import TORTOISE_ORM
 
 DATABASE_URL = "postgresql+asyncpg://diaryapi:diaryapi@localhost:5432/diaryapi"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,7 +19,7 @@ async def lifespan(app: FastAPI):
         try:
             # Tortoise 초기화 - DB 연결 시도
             await Tortoise.init(
-                config = TORTOISE_ORM,
+                config=TORTOISE_ORM,
             )
             # 필요한 경우 스키마 자동 생성 (프로덕션에선 마이그레이션 권장)
             await Tortoise.generate_schemas()
