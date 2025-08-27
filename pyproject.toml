@@ -29,3 +29,8 @@ line-length = 120
 
 [tool.flake8]
 max-line-length = 120
+
+[tool.aerich]
+tortoise_orm = "core.config.TORTOISE_ORM"
+location = "./migrations"
+src_folder = "./."

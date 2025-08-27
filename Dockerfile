@@ -26,9 +26,12 @@ COPY ./app ./app
 # 포트 설정
 EXPOSE 8000
 
-# 스크립트 복사 및 권한 부여
-COPY ./scripts ./scripts
-RUN chmod +x ./scripts/run.sh
+## 스크립트 복사 및 권한 부여
+#COPY ./scripts ./scripts
+#
+## run.sh 실행
+#CMD ["/scripts/run.sh"]
 
-# run.sh 실행
-CMD ["/scripts/run.sh"]
+COPY ./scripts /app/scripts
+RUN chmod +x /app/scripts/run.sh
+CMD ["/app/scripts/run.sh"]
