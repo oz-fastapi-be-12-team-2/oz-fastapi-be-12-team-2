@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "aerich==0.9.1",
+    "anyio>=4.10.0",
     "asyncpg==0.30.0",
     "coverage==7.10.5",
     "fastapi==0.116.1",
