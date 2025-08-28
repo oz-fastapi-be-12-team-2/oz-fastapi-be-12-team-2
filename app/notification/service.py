@@ -1,13 +1,10 @@
-from datetime import datetime, timedelta, date
+from datetime import date
 
-from repository import create_notification
+from app.notification.model import NotificationType
+from app.notification.repository import create_notification
 
 from app.diary.model import EmotionStats  # noqa
 from app.user.model import User
-from model import NotificationType
-
-import httpx
-
 
 
 # TODO : emotion_stat 참고해서 수정
@@ -54,7 +51,7 @@ async def send_notifications():
                 content=content, notification_type=user.notification_type
             )  # TODO: user table 수정사항 반영하기
 
-            if notification :
+            if notification:
                 if user.notification_type == NotificationType.PUSH:
                     await send_push_notification(user, message)
                 elif user.notification_type == NotificationType.SMS:
@@ -71,52 +68,52 @@ async def send_notifications():
 async def send_push_notification(user: User, message: str):
     print(f"[PUSH] to {user.nickname}: {message}")
 
-    # FCM(Firebase Cloud Messaging) 사용
-    if not user.push_token:
-        return
-    payload = {
-        "to": user.push_token,
-        "notification": {"title": "오늘의 감정 알림", "body": message},
-    }
-    # aiohttp 또는 httpx로 FCM API 호출
-    async with httpx.AsyncClient() as client:
-        await client.post("https://fcm.googleapis.com/fcm/send", json=payload,
-                          headers={"Authorization": f"key={FCM_SERVER_KEY}"})
+    # # FCM(Firebase Cloud Messaging) 사용
+    # if not user.push_token:
+    #     return
+    # payload = {
+    #     "to": user.push_token,
+    #     "notification": {"title": "오늘의 감정 알림", "body": message},
+    # }
+    # # aiohttp 또는 httpx로 FCM API 호출
+    # async with httpx.AsyncClient() as client:
+    #     await client.post("https://fcm.googleapis.com/fcm/send", json=payload,
+    #                       headers={"Authorization": f"key={FCM_SERVER_KEY}"})
 
 
 # SMS
 async def send_sms(user: User, message: str):
     print(f"[SMS] to {user.nickname}: {message}")
 
-    # Twilio 사용
-    from twilio.rest import Client
-    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    client.messages.create(
-        to=user.phone_number,
-        from_=TWILIO_PHONE_NUMBER,
-        body=message
-    )
+    # # Twilio 사용
+    # from twilio.rest import Client
+    # client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    # client.messages.create(
+    #     to=user.phone_number,
+    #     from_=TWILIO_PHONE_NUMBER,
+    #     body=message
+    # )
 
 
 # EMAIL
 async def send_email(user: User, message: str):
     print(f"[EMAIL] to {user.nickname}: {message}")
 
-    # FastAPI BackgroundTasks + aiosmtplib
-    from email.message import EmailMessage
-    import aiosmtplib
-
-    email = EmailMessage()
-    email["From"] = SMTP_FROM
-    email["To"] = user.email
-    email["Subject"] = "오늘의 감정 알림"
-    email.set_content(message)
-
-    await aiosmtplib.send(
-        email,
-        hostname=SMTP_HOST,
-        port=SMTP_PORT,
-        username=SMTP_USER,
-        password=SMTP_PASSWORD,
-        start_tls=True,
-    )
+    # # FastAPI BackgroundTasks + aiosmtplib
+    # from email.message import EmailMessage
+    # import aiosmtplib
+    #
+    # email = EmailMessage()
+    # email["From"] = SMTP_FROM
+    # email["To"] = user.email
+    # email["Subject"] = "오늘의 감정 알림"
+    # email.set_content(message)
+    #
+    # await aiosmtplib.send(
+    #     email,
+    #     hostname=SMTP_HOST,
+    #     port=SMTP_PORT,
+    #     username=SMTP_USER,
+    #     password=SMTP_PASSWORD,
+    #     start_tls=True,
+    # )

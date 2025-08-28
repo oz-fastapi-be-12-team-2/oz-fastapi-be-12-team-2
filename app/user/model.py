@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from tortoise import fields, Model
+from tortoise import Model, fields
 
 from app.shared.model import TimestampMixin
 
@@ -10,10 +10,12 @@ class UserRole(StrEnum):
     STAFF = "staff"
     SUPERUSER = "superuser"
 
+
 class NotificationType(StrEnum):
     PUSH = "PUSH"
     EMAIL = "EMAIL"
     SMS = "SMS"
+
 
 class User(TimestampMixin, Model):
     id = fields.BigIntField(pk=True, generated=True)  # 사용자 ID, AUTO_INCREMENT
@@ -39,8 +41,7 @@ class User(TimestampMixin, Model):
         ordering = ["-created_at"]
 
 
-
-#EmotionStats 필드 (확인필요)
+# EmotionStats 필드 (확인필요)
 class EmotionStats(Model):
     stat_id = fields.IntField(pk=True)  # AUTO_INCREMENT PK
     user = fields.ForeignKeyField("models.User", related_name="emotion_stats")  # FK
