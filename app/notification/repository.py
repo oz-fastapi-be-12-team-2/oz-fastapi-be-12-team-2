@@ -1,14 +1,14 @@
-from model import Notification, NotificationType
+from model import Notification
 
 from app.user.model import User
 
 
-async def create_notification(content: str, notification_type: NotificationType) -> Notification:
+async def create_notification(content: str, alert_type: str) -> Notification:
     users = await User.filter(receive_notifications=True).all()
     if not users:
         return None  # 알림 발송 대상이 없으면 None 반환
 
-    notification = await Notification.create(content=content, notification_type=notification_type)
+    notification = await Notification.create(content=content, alert_type=alert_type)
     await notification.user.add(*users)
     return notification
 

@@ -4,7 +4,6 @@ from repository import create_notification
 
 from app.diary.model import EmotionStats  # noqa
 from app.user.model import User
-from model import NotificationType
 
 
 
@@ -49,32 +48,9 @@ async def send_notifications():
         if await check_weekly_negative_emotions(user.id):
             content = message
             notification = await create_notification(
-                content=content, notification_type=user.notification_type
+                content=content, alert_type=user.notification_type
             )  # TODO: user table 수정사항 반영하기
-
             if notification :
-                if user.notification_type == NotificationType.PUSH:
-                    await send_push_notification(user, message)
-                elif user.notification_type == NotificationType.SMS:
-                    await send_sms(user, message)
-                elif user.notification_type == NotificationType.EMAIL:
-                    await send_email(user, message)
-
                 sent_notifications.append(notification)
 
     return sent_notifications
-
-
-async def send_push_notification(user: User, message: str):
-    # 예시: FCM(Firebase Cloud Messaging) 사용
-    if not user.push_token:
-        return
-    payload = {
-        "to": user.push_token,
-        "notification": {"title": "오늘의 감정 알림", "body": message},
-    }
-    # aiohttp 또는 httpx로 FCM API 호출
-    import httpx
-    async with httpx.AsyncClient() as client:
-        await client.post("https://fcm.googleapis.com/fcm/send", json=payload,
-                          headers={"Authorization": f"key={FCM_SERVER_KEY}"})
