@@ -2,7 +2,6 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from tortoise.transactions import in_transaction
 from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
