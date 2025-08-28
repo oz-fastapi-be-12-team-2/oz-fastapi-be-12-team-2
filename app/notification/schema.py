@@ -14,7 +14,7 @@ class NotificationCreateRequest(BaseModel):
 
 
 class NotificationResponse(BaseModel):
-    alert_id: int
+    notification_id: int
     content: str
     notification_type: NotificationType
     created_at: datetime

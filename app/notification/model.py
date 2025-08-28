@@ -30,7 +30,7 @@ class Notification(TimestampMixin, Model):
     )
 
     def __str__(self):
-        return f"Notification(id={self.alert_id}, content={self.content})"
+        return f"Notification(id={self.notification_id}, content={self.content})"
 
     class Meta:
         table = "notifications"
