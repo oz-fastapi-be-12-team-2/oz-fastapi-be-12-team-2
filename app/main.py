@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from tortoise.transactions import in_transaction
 from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
@@ -44,8 +45,8 @@ app = FastAPI(lifespan=lifespan)
 
 # lifespan check
 
-# app.get("/lifespancheck")
+# @app.get("/lifespancheck")
 # async def db_check():
 #   async with in_transaction() as conn:
 #       result = await conn.execute_query("SELECT 1")
-#     return {"db_ok": result[0][0] == 1}
+#       return {"db_ok": result[0][0] == 1}
