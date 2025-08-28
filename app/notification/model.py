@@ -7,7 +7,7 @@ from tortoise.models import Model
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
-    from app.user.models import User  # 실제 User 모델이 정의된 경로에 맞춰 수정
+    from app.user.model import User  # 실제 User 모델이 정의된 경로에 맞춰 수정
 
 
 class AlertType(StrEnum):
