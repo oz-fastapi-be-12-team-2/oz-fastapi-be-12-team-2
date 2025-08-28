@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 from tortoise import fields
-from tortoise.models import Model
+from tortoise.model import Model
 
 from app.shared.model import TimestampMixin
 
@@ -11,6 +11,10 @@ class UserRole(StrEnum):
     STAFF = "staff"
     SUPERUSER = "superuser"
 
+class NotificationType(StrEnum):
+    PUSH = "PUSH"
+    EMAIL = "EMAIL"
+    SMS = "SMS"
 
 class User(TimestampMixin, Model):
     id = fields.BigIntField(pk=True, generated=True)  # 사용자 ID, AUTO_INCREMENT
@@ -21,6 +25,12 @@ class User(TimestampMixin, Model):
     phonenumber = fields.CharField(max_length=20)  # 연락처
     lastlogin = fields.DatetimeField(null=True)  # 마지막 로그인
     account_activation = fields.BooleanField(default=False)  # 계정 활성화 여부
+    receive_notifications = fields.BooleanField(default=True)
+    notification_type = fields.CharEnumField(
+        enum_type=NotificationType, default=NotificationType.PUSH
+    )
+    user_roles = fields.CharEnumField(
+        enum_type=UserRole, default=UserRole.USER
     user_roles = fields.CharEnumField(
         enum_type=UserRole, default=UserRole.USER
     )  # 유저 권한
@@ -30,3 +40,17 @@ class User(TimestampMixin, Model):
     class Meta:
         table = "users"
         ordering = ["-created_at"]
+
+
+
+#EmotionStats 필드 (확인필요)
+class EmotionStats(Model):
+    stat_id = fields.IntField(pk=True)  # AUTO_INCREMENT PK
+    user = fields.ForeignKeyField("models.User", related_name="emotion_stats")  # FK
+    period_type = fields.CharEnumField(enum_type=["일간", "주간"])  # ENUM
+    emotion_type = fields.CharEnumField(enum_type=["기쁨", "분노", "우울"])  # ENUM
+    frequency = fields.IntField()  # 횟수
+    created_at = fields.DatetimeField(auto_now_add=True)  # 생성시 자동 입력
+
+    class Meta:
+        table = "emotion_stats"
