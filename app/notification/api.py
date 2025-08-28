@@ -17,7 +17,7 @@ async def create_notification_endpoint(req: NotificationCreateRequest):
     notification = await send_notifications()
     if notification is None:
         return {"message": "알림 발송 대상이 없습니다."}
-    return {"message": "알림 발송 완료"}
+    return {"message": f"{len(notification)}명에게 알림 발송 완료"}
 
 
 @router.get("/{user_id}", response_model=list[NotificationResponse])

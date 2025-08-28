@@ -1,12 +1,12 @@
 from datetime import datetime
 
-from model import AlertType
+from model import NotificationType
 from pydantic import BaseModel, Field
 
 
 class NotificationCreateRequest(BaseModel):
     content: str = Field(..., max_length=255, description="알림 내용")
-    alert_type: AlertType = Field(..., description="알림 타입")
+    alert_type: NotificationType = Field(..., description="알림 타입")
     # user_ids: list[int] = Field(..., description="알림을 받을 사용자 ID 목록")
     # TODO : user Model에 receive_notifications 필드 추가 -- 완료
     # TODO : user schema에 receive_notifications 필드 추가?
@@ -17,7 +17,7 @@ class NotificationCreateRequest(BaseModel):
 class NotificationResponse(BaseModel):
     alert_id: int
     content: str
-    alert_type: AlertType
+    alert_type: NotificationType
     created_at: datetime
     updated_at: datetime
 

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from app.user.model import User  # 실제 User 모델이 정의된 경로에 맞춰 수정
 
 
-class AlertType(StrEnum):
+class NotificationType(StrEnum):
     PUSH = "PUSH"
     EMAIL = "EMAIL"
     SMS = "SMS"
@@ -19,7 +19,7 @@ class AlertType(StrEnum):
 class Notification(TimestampMixin, Model):
     alert_id = fields.BigIntField(pk=True)
     content = fields.CharField(max_length=255, null=True)
-    alert_type = fields.CharEnumField(AlertType)
+    notification_type = fields.CharEnumField(NotificationType, default="PUSH")
 
     # 타입 힌트는 문자열로 ("User") → 타입체커는 TYPE_CHECKING import 를 보고 인식
     user: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
