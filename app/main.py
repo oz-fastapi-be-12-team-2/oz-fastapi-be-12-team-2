@@ -48,3 +48,22 @@ app = FastAPI(lifespan=lifespan)
 #   async with in_transaction() as conn:
 #       result = await conn.execute_query("SELECT 1")
 #     return {"db_ok": result[0][0] == 1}
+
+
+# Gemini api
+from fastapi import FastAPI
+from app.ai.router import router as ai_router
+
+app = FastAPI(
+    title="FastAPI with AI Service",
+    description="Gemini API를 사용하는 FastAPI 애플리케이션",
+    version="1.0.0",
+)
+
+# AI 라우터 등록
+app.include_router(ai_router)
+
+
+@app.get("/")
+def read_root():
+    return {"message": "Gemini API를 사용하는 FastAPI 서버입니다."}
