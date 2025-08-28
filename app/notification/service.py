@@ -65,8 +65,11 @@ async def send_notifications():
     return sent_notifications
 
 
+# PUSH
 async def send_push_notification(user: User, message: str):
-    # 예시: FCM(Firebase Cloud Messaging) 사용
+    print(f"[PUSH] to {user.nickname}: {message}")
+
+    # FCM(Firebase Cloud Messaging) 사용
     if not user.push_token:
         return
     payload = {
@@ -78,3 +81,41 @@ async def send_push_notification(user: User, message: str):
     async with httpx.AsyncClient() as client:
         await client.post("https://fcm.googleapis.com/fcm/send", json=payload,
                           headers={"Authorization": f"key={FCM_SERVER_KEY}"})
+
+
+# SMS
+async def send_sms(user: User, message: str):
+    print(f"[SMS] to {user.nickname}: {message}")
+
+    # Twilio 사용
+    from twilio.rest import Client
+    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    client.messages.create(
+        to=user.phone_number,
+        from_=TWILIO_PHONE_NUMBER,
+        body=message
+    )
+
+
+# EMAIL
+async def send_email(user: User, message: str):
+    print(f"[EMAIL] to {user.nickname}: {message}")
+
+    # FastAPI BackgroundTasks + aiosmtplib
+    from email.message import EmailMessage
+    import aiosmtplib
+
+    email = EmailMessage()
+    email["From"] = SMTP_FROM
+    email["To"] = user.email
+    email["Subject"] = "오늘의 감정 알림"
+    email.set_content(message)
+
+    await aiosmtplib.send(
+        email,
+        hostname=SMTP_HOST,
+        port=SMTP_PORT,
+        username=SMTP_USER,
+        password=SMTP_PASSWORD,
+        start_tls=True,
+    )
