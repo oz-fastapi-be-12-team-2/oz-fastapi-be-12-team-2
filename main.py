@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
     await Tortoise.close_connections()
 
 
+# 인스턴스 네임 지정
 app = FastAPI(lifespan=lifespan)
 
 # lifespan check
