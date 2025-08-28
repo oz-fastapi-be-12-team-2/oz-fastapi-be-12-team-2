@@ -6,6 +6,8 @@ from app.diary.model import EmotionStats  # noqa
 from app.user.model import User
 from model import NotificationType
 
+import httpx
+
 
 
 # TODO : emotion_stat 참고해서 수정
@@ -77,7 +79,6 @@ async def send_push_notification(user: User, message: str):
         "notification": {"title": "오늘의 감정 알림", "body": message},
     }
     # aiohttp 또는 httpx로 FCM API 호출
-    import httpx
     async with httpx.AsyncClient() as client:
         await client.post("https://fcm.googleapis.com/fcm/send", json=payload,
                           headers={"Authorization": f"key={FCM_SERVER_KEY}"})

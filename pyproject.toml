@@ -9,6 +9,7 @@ dependencies = [
     "asyncpg==0.30.0",
     "coverage==7.10.5",
     "fastapi==0.116.1",
+    "httpx>=0.28.1",
     "mypy==1.17.1",
     "python-dotenv==1.1.1",
     "tortoise-orm==0.25.1",
