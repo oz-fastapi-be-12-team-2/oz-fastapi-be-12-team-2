@@ -6,7 +6,8 @@ from typing import Annotated, Any, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.diary.model import MainEmotion  # Enum 가정: '긍정'/'부정'/'중립' 등
+from app.ai.schema import DiaryEmotionResponse
+from app.diary.model import MainEmotionType
 
 # ============================================================
 # 1) 공통 유효성 타입(제약 모음)
@@ -21,20 +22,25 @@ PageSize = Annotated[int, Field(ge=1, le=100)]
 # ============================================================
 # 2) 공통 서브 모델 (서브 구조, 공용으로 쓰일 수 있는 것들)
 # ============================================================
-class EmotionAnalysis(BaseModel):
-    """
-    감정 분석 결과 구조.
-    예) {"label": "긍정", "positive": 0.7, "negative": 0.2, "neutral": 0.1}
-    """
+# class EmotionAnalysis(BaseModel):
+#     """
+#     감정 분석 결과 구조.
+#     예) {
+#     "main_emotion": "긍정|부정|중립",
+#     "confidence": 0.85,
+#     "reason": "분석 근거를 간단히 설명",
+#     "key_phrases": ["감정을 나타내는 주요 문구들"]
+#     }
+#     """
 
-    model_config = ConfigDict(from_attributes=True)
+#     model_config = ConfigDict(from_attributes=True)
 
-    label: Optional[MainEmotion] = Field(
-        default=None, description="모델이 예측한 대표 감정 라벨(없으면 null)"
-    )
-    positive: Optional[float] = Field(None, ge=0.0, le=1.0)
-    negative: Optional[float] = Field(None, ge=0.0, le=1.0)
-    neutral: Optional[float] = Field(None, ge=0.0, le=1.0)
+#     label: Optional[MainEmotionType] = Field(
+#         default=None, description="모델이 예측한 대표 감정 라벨(없으면 null)"
+#     )
+#     positive: Optional[float] = Field(None, ge=0.0, le=1.0)
+#     negative: Optional[float] = Field(None, ge=0.0, le=1.0)
+#     neutral: Optional[float] = Field(None, ge=0.0, le=1.0)
 
 
 class TagIn(BaseModel):
@@ -74,7 +80,7 @@ class DiaryBase(BaseModel):
 
     title: DiaryTitle
     content: DiaryContent
-    main_emotion: Optional[MainEmotion] = Field(
+    main_emotion: Optional[MainEmotionType] = Field(
         default=None, description="주요 감정. 미지정 시 null"
     )
 
@@ -89,7 +95,7 @@ class DiaryCreate(DiaryBase):
     model_config = ConfigDict(from_attributes=True)
 
     user_id: int
-    emotion_analysis: Optional[EmotionAnalysis] = None
+    emotion_analysis: Optional[DiaryEmotionResponse] = None
     tags: list[TagIn] = Field(default_factory=list, description="태그 목록")
     images: list[str] = Field(default_factory=list, description="이미지 URL 목록")
 
@@ -147,8 +153,8 @@ class DiaryUpdate(BaseModel):
 
     title: Optional[DiaryTitle] = None
     content: Optional[DiaryContent] = None
-    main_emotion: Optional[MainEmotion] = None
-    emotion_analysis: Optional[EmotionAnalysis] = None
+    main_emotion: Optional[MainEmotionType] = None
+    emotion_analysis: Optional[DiaryEmotionResponse] = None
     tags: Optional[list[TagIn]] = None
     images: Optional[list[str]] = None
 
@@ -207,7 +213,7 @@ class DiaryResponse(DiaryBase):
 
     diary_id: int
     user_id: int
-    emotion_analysis: Optional[EmotionAnalysis] = None
+    emotion_analysis: Optional[DiaryEmotionResponse] = None
     tags: list[TagOut] = Field(default_factory=list)
     images: list[DiaryImageOut] = Field(default_factory=list)
     created_at: datetime
@@ -224,7 +230,7 @@ class DiaryListItem(BaseModel):
     diary_id: int
     user_id: int
     title: str
-    main_emotion: Optional[MainEmotion] = None
+    main_emotion: Optional[MainEmotionType] = None
     created_at: datetime
 
 
@@ -272,9 +278,9 @@ class _DiaryLike(Protocol):
 
 
 # ---------- 내부 헬퍼 ----------
-def _safe_ea_to_model(ea: Any) -> Optional[EmotionAnalysis]:
+def _safe_ea_to_model(ea: Any) -> Optional[DiaryEmotionResponse]:
     """
-    emotion_analysis를 EmotionAnalysis 모델로 '안전하게' 변환.
+    emotion_analysis를 DiaryEmotionResponse 모델로 '안전하게' 변환.
     - None → None
     - str(JSON) → dict 로드 후 모델 검증
     - dict → 모델 검증
@@ -284,7 +290,7 @@ def _safe_ea_to_model(ea: Any) -> Optional[EmotionAnalysis]:
     if ea is None:
         return None
 
-    if isinstance(ea, EmotionAnalysis):
+    if isinstance(ea, DiaryEmotionResponse):
         return ea
 
     if isinstance(ea, str):
@@ -295,13 +301,13 @@ def _safe_ea_to_model(ea: Any) -> Optional[EmotionAnalysis]:
         if not isinstance(loaded, dict):
             return None
         try:
-            return EmotionAnalysis.model_validate(loaded)
+            return DiaryEmotionResponse.model_validate(loaded)
         except Exception:
             return None
 
     if isinstance(ea, dict):
         try:
-            return EmotionAnalysis.model_validate(ea)
+            return DiaryEmotionResponse.model_validate(ea)
         except Exception:
             return None
 

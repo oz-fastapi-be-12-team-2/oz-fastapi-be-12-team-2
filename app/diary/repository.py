@@ -1,17 +1,18 @@
 import json
-from datetime import datetime
+from datetime import date
 from typing import Any, Iterable, Optional
 
 from tortoise.transactions import in_transaction
 
+from app.ai.schema import DiaryEmotionResponse
 from app.diary.model import Diary, Image
-from app.diary.schema import DiaryCreate, EmotionAnalysis, TagIn
+from app.diary.schema import DiaryCreate, TagIn
 from app.tag.model import Tag
 
 
-def _dumps_ea(ea: Optional[EmotionAnalysis | dict[str, Any]]) -> Optional[str]:
+def _dumps_ea(ea: Optional[DiaryEmotionResponse | dict[str, Any]]) -> Optional[str]:
     """
-    EmotionAnalysis(Pydantic)이나 dict를 DB 저장용 JSON 문자열로 변환
+    DiaryEmotionResponse(Pydantic)이나 dict를 DB 저장용 JSON 문자열로 변환
     """
     if ea is None:
         return None
@@ -78,8 +79,8 @@ async def list_by_filters(
     *,
     user_id: Optional[int] = None,
     main_emotion: Optional[str] = None,
-    date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Diary], int]:

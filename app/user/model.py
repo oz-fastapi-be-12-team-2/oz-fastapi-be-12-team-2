@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from tortoise import Model, fields
 
-from app.diary.model import MainEmotion
+from app.diary.model import MainEmotionType
 from app.notification.model import NotificationType
 from app.shared.model import TimestampMixin
 
@@ -56,7 +56,7 @@ class EmotionStats(Model):
         "models.User", related_name="emotion_stats"
     )  # FK
     period_type = fields.CharEnumField(PeriodType)  # ENUM
-    emotion_type = fields.CharEnumField(MainEmotion)  # ENUM
+    emotion_type = fields.CharEnumField(MainEmotionType)  # ENUM
     frequency = fields.IntField()  # 횟수
     created_at = fields.DatetimeField(auto_now_add=True)  # 생성시 자동 입력
 

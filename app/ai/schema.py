@@ -3,7 +3,7 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
 
-from app.diary.model import MainEmotion
+from app.diary.model import MainEmotionType
 
 
 class PeriodType(str, Enum):
@@ -30,7 +30,7 @@ class EmotionAnalysis(BaseModel):
 class DiaryEmotionResponse(BaseModel):
     """일기 감정 분석 응답"""
 
-    main_emotion: MainEmotion = Field(..., description="주요 감정")
+    main_emotion: MainEmotionType = Field(..., description="주요 감정")
     confidence: float = Field(..., description="분석 신뢰도", ge=0, le=1)
     emotion_analysis: EmotionAnalysis = Field(..., description="상세 분석 결과")
 
