@@ -1,8 +1,9 @@
-from datetime import date
+from datetime import date, datetime, time
 
+from app.diary.model import MainEmotion
 from app.notification.model import NotificationType
 from app.notification.repository import create_notification
-from app.user.model import EmotionStats, User
+from app.user.model import EmotionStats, PeriodType, User
 
 
 # TODO : emotion_stat 참고해서 수정
@@ -12,11 +13,15 @@ async def check_weekly_negative_emotions(user_id: int) -> bool:
     """
 
     today = date.today()
+    start = datetime.combine(today, time.min)  # 00:00:00
+    end = datetime.combine(today, time.max)  # 23:59:59.999999
+
     stats = await EmotionStats.get_or_none(
         user_id=user_id,
-        period_type="weekly",
-        created_at=today,
-        emotion_type="negative",
+        period_type=PeriodType.WEEKLY.value,
+        created_at__gte=start,
+        created_at__lt=end,
+        emotion_type=MainEmotion.NEGATIVE.value,
     )
     return stats is not None and stats.frequency >= 5
 
