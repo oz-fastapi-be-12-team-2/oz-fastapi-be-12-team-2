@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
+from app.ai.router import router as ai_router
 from core.config import TORTOISE_ORM
 
 DATABASE_URL = "postgresql+asyncpg://diaryapi:diaryapi@localhost:5432/diaryapi"
@@ -39,13 +40,25 @@ async def lifespan(app: FastAPI):
     await Tortoise.close_connections()
 
 
-# 인스턴스 네임 지정
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="FastAPI with AI Service",
+    description="Gemini API를 사용하는 FastAPI 애플리케이션",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 # lifespan check
-
-# @app.get("/lifespancheck")
+# app.get("/lifespancheck")
 # async def db_check():
-#   async with in_transaction() as conn:
-#       result = await conn.execute_query("SELECT 1")
-#       return {"db_ok": result[0][0] == 1}
+# async with in_transaction() as conn:
+# result = await conn.execute_query("SELECT 1")
+# return {"db_ok": result[0][0] == 1}
+
+# Gemini api
+# AI 라우터 등록
+app.include_router(ai_router)
+
+
+@app.get("/")
+def read_root():
+    return {"message": "Gemini API를 사용하는 FastAPI 서버입니다."}
