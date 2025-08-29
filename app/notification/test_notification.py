@@ -1,13 +1,13 @@
 import pytest
 from httpx import AsyncClient
-from app.notification.service import send_notifications
 
 from app.main import app
+from app.notification.service import send_notifications
 from app.user.model import NotificationType, User
 
 
 @pytest.mark.asyncio
-async def test_send_notifications(db):
+async def test_send_notifications():
     # given: 알림 수신 동의한 사용자 준비
     user = await User.create(
         username="tester",
@@ -50,17 +50,10 @@ async def test_get_notifications_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_push_notification(monkeypatch):
+async def test_push_notification(capsys):
     """
-    PUSH 알림 테스트
+    PUSH 알림 테스트 (print 검증)
     """
-
-    # 실제 발송 함수 대신 print만 확인
-    async def fake_send_push(user, message: str):
-        print(f"[TEST-PUSH] to {user.nickname}: {message}")
-
-    monkeypatch.setattr("notifications.send_push_notification", fake_send_push)
-
     async with AsyncClient(app=app, base_url="http://test") as ac:
         payload = {"content": "푸쉬 테스트", "notification_type": "PUSH"}
         response = await ac.post("/notifications/", json=payload)
@@ -69,38 +62,36 @@ async def test_push_notification(monkeypatch):
     data = response.json()
     assert data["message"] == "알림이 생성되었습니다."
 
+    # print 캡처 확인
+    captured = capsys.readouterr()
+    assert "[PUSH]" in captured.out
+
 
 @pytest.mark.asyncio
-async def test_sms_notification(monkeypatch):
+async def test_sms_notification(capsys):
     """
-    SMS 알림 테스트
+    SMS 알림 테스트 (print 검증)
     """
-
-    async def fake_send_sms(user, message: str):
-        print(f"[TEST-SMS] to {user.nickname}: {message}")
-
-    monkeypatch.setattr("notifications.send_sms", fake_send_sms)
-
     async with AsyncClient(app=app, base_url="http://test") as ac:
         payload = {"content": "문자 테스트", "notification_type": "SMS"}
         response = await ac.post("/notifications/", json=payload)
 
     assert response.status_code == 200
 
+    captured = capsys.readouterr()
+    assert "[SMS]" in captured.out
+
 
 @pytest.mark.asyncio
-async def test_email_notification(monkeypatch):
+async def test_email_notification(capsys):
     """
-    EMAIL 알림 테스트
+    EMAIL 알림 테스트 (print 검증)
     """
-
-    async def fake_send_email(user, message: str):
-        print(f"[TEST-EMAIL] to {user.nickname}: {message}")
-
-    monkeypatch.setattr("notifications.send_email", fake_send_email)
-
     async with AsyncClient(app=app, base_url="http://test") as ac:
         payload = {"content": "이메일 테스트", "notification_type": "EMAIL"}
         response = await ac.post("/notifications/", json=payload)
 
     assert response.status_code == 200
+
+    captured = capsys.readouterr()
+    assert "[EMAIL]" in captured.out

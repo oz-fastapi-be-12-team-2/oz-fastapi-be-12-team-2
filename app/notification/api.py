@@ -1,10 +1,9 @@
 # notification/api/notification_router.py
 from fastapi import APIRouter
-from service import send_notifications
 
 from app.notification.repository import get_notifications_for_user
-from app.notification.schema import (NotificationCreateRequest,
-                                     NotificationResponse)
+from app.notification.schema import NotificationCreateRequest, NotificationResponse
+from app.notification.service import send_notifications
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 

@@ -2,9 +2,7 @@ from datetime import date
 
 from app.notification.model import NotificationType
 from app.notification.repository import create_notification
-
-from app.diary.model import EmotionStats  # noqa
-from app.user.model import User
+from app.user.model import EmotionStats, User
 
 
 # TODO : emotion_stat 참고해서 수정
@@ -49,7 +47,7 @@ async def send_notifications():
             content = message
             notification = await create_notification(
                 content=content, notification_type=user.notification_type
-            )  # TODO: user table 수정사항 반영하기
+            )
 
             if notification:
                 if user.notification_type == NotificationType.PUSH:

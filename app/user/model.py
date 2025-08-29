@@ -1,8 +1,20 @@
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from tortoise import Model, fields
 
+from app.diary.model import MainEmotion
 from app.shared.model import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.notification.model import (  # 실제 Notification 모델이 정의된 경로에 맞춰 수정
+        Notification,
+    )
+
+
+class PeriodType(StrEnum):
+    DAILY = "일간"
+    WEEKLY = "주간"
 
 
 class UserRole(StrEnum):
@@ -35,6 +47,7 @@ class User(TimestampMixin, Model):
     )  # 유저 권한
 
     notifications: fields.ManyToManyRelation["Notification"]
+    emotionstats: fields.ManyToManyRelation["EmotionStats"]
 
     class Meta:
         table = "users"
@@ -44,9 +57,11 @@ class User(TimestampMixin, Model):
 # EmotionStats 필드 (확인필요)
 class EmotionStats(Model):
     stat_id = fields.IntField(pk=True)  # AUTO_INCREMENT PK
-    user = fields.ForeignKeyField("models.User", related_name="emotion_stats")  # FK
-    period_type = fields.CharEnumField(enum_type=["일간", "주간"])  # ENUM
-    emotion_type = fields.CharEnumField(enum_type=["기쁨", "분노", "우울"])  # ENUM
+    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+        "models.User", related_name="emotion_stats"
+    )  # FK
+    period_type = fields.CharEnumField(PeriodType)  # ENUM
+    emotion_type = fields.CharEnumField(MainEmotion)  # ENUM
     frequency = fields.IntField()  # 횟수
     created_at = fields.DatetimeField(auto_now_add=True)  # 생성시 자동 입력
 

@@ -1,9 +1,14 @@
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from tortoise import fields
 from tortoise.models import Model
 
 from app.shared.model import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.tag.model import Tag  # 실제 Tag 모델이 정의된 경로에 맞춰 수정
+    from app.user.model import User  # 실제 User 모델이 정의된 경로에 맞춰 수정
 
 
 class MainEmotion(StrEnum):
