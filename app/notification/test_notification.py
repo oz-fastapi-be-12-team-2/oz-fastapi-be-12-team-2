@@ -55,7 +55,7 @@ async def client(app: FastAPI):
 async def test_user() -> AsyncGenerator[User, None]:
     # 모든 테스트에서 공유할 유저 생성
     user = await User.create(
-        email="tester@example.com",
+        email="restinplastic@naver.com",
         password="tester1234",
         username="테스터",
         nickname="tester",

@@ -1,12 +1,19 @@
+import os
+import smtplib
 from datetime import date, datetime, time
+from email.mime.text import MIMEText
+
+from dotenv import load_dotenv
 
 from app.diary.model import MainEmotion
 from app.notification.model import NotificationType
 from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
 
+# .env 읽기
+load_dotenv()
 
-# TODO : emotion_stat 참고해서 수정
+
 async def check_weekly_negative_emotions(user_id: int) -> bool:
     """
     주간 단위 부정적 감정 5회 이상 기록 여부 체크
@@ -33,9 +40,9 @@ async def send_notifications():
         1: "조금 지치셨나요? 남은 날들은 즐거운 일만 가득할 거에요. 🌿",
         2: "벌써 반 이상 왔습니다! 조금만 더 힘내봐요. 📝",
         3: "오늘도 많이 힘드셨죠? 내일만 지나면 주말이다! 힘든 마음을 챙겨보세요. 🧘",
-        4: "금요일: 주말이 다가옵니다. 부정적 감정을 놓아주세요. 🎵",
-        5: "토요일: 이번 주 부정적 감정이 많았다면, 주말에 휴식하세요. ☕",
-        6: "일요일: 다음 주를 위해 감정을 정리하고 준비하세요. 🌸",
+        4: "주말이 다가옵니다. 부정적 감정을 놓아주세요. 🎵",
+        5: "이번 주 부정적 감정이 많았다면, 주말에 휴식하세요. ☕",
+        6: "다음 주를 위해 감정을 정리하고 준비하세요. 🌸",
     }
 
     users = await User.filter(receive_notifications=True).all()
@@ -100,7 +107,26 @@ async def send_sms(user: User, message: str):
 
 # EMAIL
 async def send_email(user: User, message: str):
-    print(f"[EMAIL] to {user.nickname}: {message}")
+    EMAIL = os.getenv("EMAIL_HOST_USER", "")
+    PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+    HOST = os.getenv("EMAIL_HOST", "")
+    PORT = int(os.getenv("EMAIL_PORT", "587"))
+
+    msg = MIMEText(message)
+    msg["Subject"] = "[Diary] 힘든 하루를 보냈나요?"
+    msg["From"] = EMAIL
+    msg["To"] = user.email
+
+    try:
+        # SMTP 연결
+        with smtplib.SMTP(HOST, PORT) as server:
+            server.starttls()  # TLS 연결
+            server.login(EMAIL, PASSWORD)
+            server.send_message(msg)
+            print("✅ 이메일 발송 성공!")
+            print(f"[EMAIL] to {user.nickname}: {message}")
+    except Exception as e:
+        print("❌ 이메일 발송 실패:", e)
 
     # # FastAPI BackgroundTasks + aiosmtplib
     # from email.message import EmailMessage
