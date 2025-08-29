@@ -68,12 +68,15 @@ async def send_notifications():
             )
 
             if notification:
-                if user.notification_type == NotificationType.PUSH:
-                    await send_push_notification(user, message)
-                elif user.notification_type == NotificationType.SMS:
-                    await send_sms(user, message)
-                elif user.notification_type == NotificationType.EMAIL:
-                    await send_email(user, message)
+                if TEST_MODE:
+                    print(f"[{user.notification_type}] to {user.nickname}: {message}")
+                else:
+                    if user.notification_type == NotificationType.PUSH:
+                        await send_push_notification(user, message)
+                    elif user.notification_type == NotificationType.SMS:
+                        await send_sms(user, message)
+                    elif user.notification_type == NotificationType.EMAIL:
+                        await send_email(user, message)
 
                 sent_notifications.append(notification)
 
@@ -82,7 +85,7 @@ async def send_notifications():
 
 # PUSH
 async def send_push_notification(user: User, message: str):
-    print(f"[PUSH] to {user.nickname}: {message}")
+    pass
     # Firebase 푸쉬 알림을 위해서는 앱에서 발급받는 토큰 필요 -> 서버만 있는 상태에서는 사용 불가
 
     # if TEST_MODE:
@@ -131,10 +134,7 @@ async def send_push_notification(user: User, message: str):
 
 # SMS
 async def send_sms(user: User, message: str):
-    if TEST_MODE:
-        print(f"[SMS] to {user.email}: {message}")
-        return
-
+    pass
     # # Twilio 사용
     # from twilio.rest import Client
     # client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -147,10 +147,6 @@ async def send_sms(user: User, message: str):
 
 # EMAIL
 async def send_email(user: User, message: str):
-    if TEST_MODE:
-        print(f"[EMAIL] to {user.email}: {message}")
-        return
-
     EMAIL = os.getenv("EMAIL_HOST_USER", "")
     PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
     HOST = os.getenv("EMAIL_HOST", "")
