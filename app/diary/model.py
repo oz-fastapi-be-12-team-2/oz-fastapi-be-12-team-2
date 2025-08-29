@@ -1,9 +1,14 @@
 from enum import StrEnum
+from typing import TYPE_CHECKING, Any, Optional
 
 from tortoise import fields
 from tortoise.models import Model
 
 from app.shared.model import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.tag.model import Tag
+    from app.user.model import User
 
 
 class MainEmotion(StrEnum):
@@ -14,10 +19,15 @@ class MainEmotion(StrEnum):
 
 class Diary(TimestampMixin, Model):
     id = fields.BigIntField(pk=True)
-    title = fields.CharField(max_length=50, null=False)
+
+    # 자주 조회/정렬될 수 있으니 인덱스 부여
+    title = fields.CharField(max_length=50, null=False, index=True)
     content = fields.TextField(null=False)
 
-    emotion_analysis = fields.TextField(null=True)
+    # JSON 저장
+    # dict 또는 None 저장 가능. 기본값은 None
+    emotion_analysis: Optional[dict[str, Any]] = fields.JSONField(null=True)
+
     main_emotion = fields.CharEnumField(enum_type=MainEmotion, null=True)  # ENUM
 
     user: fields.ForeignKeyRelation["User"] = fields.ForeignKeyField(
@@ -25,7 +35,10 @@ class Diary(TimestampMixin, Model):
     )
     images: fields.ReverseRelation["Image"]
     tags: fields.ManyToManyRelation["Tag"] = fields.ManyToManyField(
-        "models.Tag", related_name="diaries", through="diary_tag"
+        "models.Tag",
+        related_name="diaries",
+        through="models.DiaryTag",  # 아래 명시적 through 모델 사용
+        on_delete=fields.CASCADE,
     )
 
     class Meta:
@@ -36,8 +49,14 @@ class Diary(TimestampMixin, Model):
 
 
 class Image(Model):
+    # Tortoise가 런타임에 만들어주는 FK 컬럼 힌트
+    if TYPE_CHECKING:
+        diary_id: int
+
     id = fields.BigIntField(pk=True)
-    order = fields.IntField(null=False)
+
+    # 한 다이어리 내 표시 순서 → 인덱스 부여
+    order = fields.IntField(null=False, index=True)
     image = fields.TextField(null=False)
 
     diary: fields.ForeignKeyRelation[Diary] = fields.ForeignKeyField(
@@ -46,6 +65,31 @@ class Image(Model):
 
     class Meta:
         table = "images"
+        # 같은 다이어리에서 동일 order 중복 방지
+        unique_together = (("diary_id", "order"),)
 
-    def __str__(self):
-        return f"Image(id={self.id}, diary_id={self.diary_id})"
+    def __str__(self) -> str:
+        return f"Image(id={self.id}, diary_id={self.diary_id}, order={self.order})"
+
+
+class DiaryTag(Model):
+    """
+    Diary - Tag 조인 테이블.
+    - 중복(같은 다이어리에 같은 태그) 방지
+    - 조인/필터 성능을 위해 (diary_id, tag_id) 인덱스
+    """
+
+    diary: fields.ForeignKeyRelation[Diary] = fields.ForeignKeyField(
+        "models.Diary", on_delete=fields.CASCADE
+    )
+    tag: fields.ForeignKeyRelation["Tag"] = fields.ForeignKeyField(
+        "models.Tag", on_delete=fields.CASCADE
+    )
+
+    class Meta:
+        table = "diary_tags"
+        unique_together = (("diary_id", "tag_id"),)
+        indexes = (("diary_id", "tag_id"),)
+
+    def __str__(self) -> str:
+        return f"DiaryTag(diary_id={self.diary.id}, tag_id={self.tag.tag_id})"
