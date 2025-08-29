@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -95,7 +96,7 @@ async def get_diary(diary_id: int):
     """
     res = await DiaryService.get(diary_id)
     if not res:
-        raise HTTPException(status_code=404, detail="Diary not found")
+        raise HTTPException(status_code=404, detail="존재하지않는 다이어리입니다.")
     return res
 
 
@@ -110,7 +111,7 @@ async def get_diary(diary_id: int):
 )
 async def list_diaries(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
-    # ✅ Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
+    # Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
     main_emotion: Optional[MainEmotionType] = Query(
         None, description="주요 감정 라벨로 필터링"
     ),
@@ -124,7 +125,6 @@ async def list_diaries(
     - Query Params: user_id, main_emotion, date_from, date_to, page, page_size
     - Response: DiaryListResponse (items[list[DiaryListItem]] + meta)
     """
-    # Service 결과는 구현에 따라 ORM / DiaryResponse / DiaryListItem 등일 수 있음
     raw_items, total = await DiaryService.list(
         user_id=user_id,
         main_emotion=(
@@ -194,22 +194,53 @@ async def delete_diary(diary_id: int):
 @router.get("/stats/summary", response_model_exclude_none=True)
 async def stats_summary(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
-    date_from: Optional[datetime] = Query(None, description="조회 시작일"),
-    date_to: Optional[datetime] = Query(None, description="조회 종료일"),
-    inferred: bool = Query(
-        True, description="True: main_emotion 미지정 시 emotion_analysis로 추론"
-    ),
+    date_from: Optional[date] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
+    date_to: Optional[date] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
 ):
     """
     감정 통계 요약
-    - Query Params: user_id, date_from, date_to, inferred
+    - Query Params: user_id, date_from, date_to
+    - user_id 지정 시 해당 사용자의 통계, 미지정 시 전체 사용자 대상
+    - date_from/to 지정 시 해당 기간 내 일기만 집계, 미지정 시 전체 기간
     - Response: 감정별 카운트 딕셔너리 (예: {"긍정": 3, "부정": 1, "중립": 2})
     """
+
     return {
         "items": await DiaryService.emotion_stats(
             user_id=user_id,
             date_from=date_from,
             date_to=date_to,
-            inferred=inferred,
+        )
+    }
+
+
+@router.get("/stats/daily", response_model_exclude_none=True)
+async def stats_daily(
+    user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
+    date_to: Optional[date] = Query(None, description="조회 기준일 (YYYY-MM-DD)"),
+    days: int = Query(7, ge=1, le=365, description="최근 N일 (기본 7, 오늘 포함)"),
+):
+    """
+    - date_to가 주어지면: [date_to - (days-1) ~ date_to] 범위 일간
+    - date_to가 없으면: 타임존 기준 오늘을 date_to로 사용
+    - user_id 미지정 시 전체 사용자 기준
+    - 반환: {"period":"daily","from":YYYY-MM-DD,"to":YYYY-MM-DD,"items":[...]}
+    """
+    zone = ZoneInfo("Asia/Seoul")
+
+    # 기준일 결정(없으면 타임존 기준 오늘)
+    today = datetime.now(zone).date()
+    to_d = date_to or today
+    from_d = to_d - timedelta(days=days - 1)
+
+    # 날짜 → [00:00, 다음날 00:00) (타임존 포함)로 변환
+    dt_from = datetime.combine(from_d, time.min).replace(tzinfo=zone)
+    dt_to = datetime.combine(to_d + timedelta(days=1), time.min).replace(tzinfo=zone)
+
+    return {
+        "items": await DiaryService.emotion_stats(
+            user_id=user_id,
+            date_from=dt_from,
+            date_to=dt_to,
         )
     }
