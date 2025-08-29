@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,12 +20,19 @@ class DiaryEmotionRequest(BaseModel):
     user_id: int = Field(..., description="사용자 ID")
 
 
+class EmotionAnalysis(BaseModel):
+    """AI 감정 분석 상세 결과"""
+
+    reason: Optional[str] = Field(None, description="감정 분석 근거")
+    key_phrases: list[str] = Field(default_factory=list, description="핵심 키워드")
+
+
 class DiaryEmotionResponse(BaseModel):
     """일기 감정 분석 응답"""
 
     main_emotion: MainEmotion = Field(..., description="주요 감정")
-    emotion_analysis: Optional[dict[str, Any]] = Field(..., description="분석 결과 JSON 문자열")
     confidence: float = Field(..., description="분석 신뢰도", ge=0, le=1)
+    emotion_analysis: EmotionAnalysis = Field(..., description="상세 분석 결과")
 
 
 class EmotionStatsResponse(BaseModel):

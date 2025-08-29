@@ -3,7 +3,8 @@ import os
 import sys
 from pathlib import Path
 
-from app.ai.schema import DiaryEmotionRequest, DiaryEmotionResponse, MainEmotionType
+from app.ai.schema import DiaryEmotionRequest, DiaryEmotionResponse, EmotionAnalysis
+from app.diary.model import MainEmotion
 
 # 프로젝트 루트 경로 추가
 project_root = Path(__file__).parent.parent.parent
@@ -48,8 +49,8 @@ class MockDiaryEmotionService:
         }
 
         return DiaryEmotionResponse(
-            main_emotion=MainEmotionType(emotion),
-            emotion_analysis=json.dumps(analysis, ensure_ascii=False),
+            main_emotion=MainEmotion(emotion),
+            emotion_analysis=EmotionAnalysis(**analysis),  # dict → 모델 변환
             confidence=confidence,
         )
 
@@ -70,7 +71,7 @@ class TestDiaryEmotionService:
 
         result = asyncio.run(mock_service.analyze_diary_emotion(request))
 
-        assert result.main_emotion == MainEmotionType.POSITIVE
+        assert result.main_emotion == MainEmotion.POSITIVE
         assert result.confidence >= 0.7
         assert "긍정" in result.emotion_analysis
         print("긍정적 감정 분석 테스트 통과")
@@ -85,7 +86,7 @@ class TestDiaryEmotionService:
 
         result = asyncio.run(mock_service.analyze_diary_emotion(request))
 
-        assert result.main_emotion == MainEmotionType.NEGATIVE
+        assert result.main_emotion == MainEmotion.NEGATIVE
         assert result.confidence >= 0.7
         print("부정적 감정 분석 테스트 통과")
 
@@ -98,7 +99,7 @@ class TestDiaryEmotionService:
 
         result = asyncio.run(mock_service.analyze_diary_emotion(request))
 
-        assert result.main_emotion == MainEmotionType.NEUTRAL
+        assert result.main_emotion == MainEmotion.NEUTRAL
         print("중립적 감정 분석 테스트 통과")
 
     def test_service_health_check(self):
@@ -114,12 +115,12 @@ class TestDiaryEmotionService:
         import json
 
         response = DiaryEmotionResponse(
-            main_emotion=MainEmotionType.POSITIVE,
+            main_emotion=MainEmotion.POSITIVE,
             emotion_analysis=json.dumps({"test": "data"}, ensure_ascii=False),
             confidence=0.9,
         )
 
-        assert response.main_emotion == MainEmotionType.POSITIVE
+        assert response.main_emotion == MainEmotion.POSITIVE
         assert response.confidence == 0.9
         assert isinstance(response.emotion_analysis, str)
         print("응답 스키마 테스트 통과")
@@ -129,7 +130,7 @@ class TestDiaryEmotionService:
         # DB에서 사용하는 값들
         db_emotions = ["긍정", "부정", "중립"]
 
-        for emotion_type in MainEmotionType:
+        for emotion_type in MainEmotion:
             assert emotion_type.value in db_emotions
 
         print("DB 호환성 테스트 통과")
@@ -137,9 +138,9 @@ class TestDiaryEmotionService:
 
 def test_basic_functionality():
     """기본 기능 테스트"""
-    assert MainEmotionType.POSITIVE == "긍정"
-    assert MainEmotionType.NEGATIVE == "부정"
-    assert MainEmotionType.NEUTRAL == "중립"
+    assert MainEmotion.POSITIVE == "긍정"
+    assert MainEmotion.NEGATIVE == "부정"
+    assert MainEmotion.NEUTRAL == "중립"
     print("기본 기능 테스트 통과")
 
 
