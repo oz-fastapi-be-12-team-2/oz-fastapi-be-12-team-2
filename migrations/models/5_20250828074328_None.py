@@ -3,7 +3,15 @@ from tortoise import BaseDBAsyncClient
 
 async def upgrade(db: BaseDBAsyncClient) -> str:
     return """
-        CREATE TABLE IF NOT EXISTS "users" (
+        CREATE TABLE IF NOT EXISTS "감정 알림" (
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "alert_id" BIGSERIAL NOT NULL PRIMARY KEY,
+    "content" VARCHAR(255),
+    "alert_type" VARCHAR(5) NOT NULL
+);
+COMMENT ON COLUMN "감정 알림"."alert_type" IS 'PUSH: PUSH\nEMAIL: EMAIL\nSMS: SMS';
+CREATE TABLE IF NOT EXISTS "users" (
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "id" BIGSERIAL NOT NULL PRIMARY KEY,
@@ -38,30 +46,22 @@ CREATE TABLE IF NOT EXISTS "tags" (
     "tag_id" BIGSERIAL NOT NULL PRIMARY KEY,
     "tag_name" VARCHAR(50) NOT NULL UNIQUE
 );
-CREATE TABLE IF NOT EXISTS "notifications" (
-    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "alert_id" BIGSERIAL NOT NULL PRIMARY KEY,
-    "content" VARCHAR(255),
-    "alert_type" VARCHAR(5) NOT NULL
-);
-COMMENT ON COLUMN "notifications"."alert_type" IS 'PUSH: PUSH\nEMAIL: EMAIL\nSMS: SMS';
 CREATE TABLE IF NOT EXISTS "aerich" (
     "id" SERIAL NOT NULL PRIMARY KEY,
     "version" VARCHAR(255) NOT NULL,
     "app" VARCHAR(100) NOT NULL,
     "content" JSONB NOT NULL
 );
+CREATE TABLE IF NOT EXISTS "감정 알림_users" (
+    "감정 알림_id" BIGINT NOT NULL REFERENCES "감정 알림" ("alert_id") ON DELETE CASCADE,
+    "user_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "uidx_감정 알림_users_감정 알림_i_1cd8f2" ON "감정 알림_users" ("감정 알림_id", "user_id");
 CREATE TABLE IF NOT EXISTS "diary_tag" (
     "diaries_id" BIGINT NOT NULL REFERENCES "diaries" ("id") ON DELETE CASCADE,
     "tag_id" BIGINT NOT NULL REFERENCES "tags" ("tag_id") ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "uidx_diary_tag_diaries_dc5517" ON "diary_tag" ("diaries_id", "tag_id");
-CREATE TABLE IF NOT EXISTS "notification_users" (
-    "notifications_id" BIGINT NOT NULL REFERENCES "notifications" ("alert_id") ON DELETE CASCADE,
-    "user_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE
-);
-CREATE UNIQUE INDEX IF NOT EXISTS "uidx_notificatio_notific_88ae6e" ON "notification_users" ("notifications_id", "user_id");"""
+CREATE UNIQUE INDEX IF NOT EXISTS "uidx_diary_tag_diaries_dc5517" ON "diary_tag" ("diaries_id", "tag_id");"""
 
 
 async def downgrade(db: BaseDBAsyncClient) -> str:
