@@ -8,8 +8,8 @@ from app.ai.schema import MainEmotionType
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
-    from app.tag.model import Tag
-    from app.user.model import User
+    from app.tag.model import Tag  # 실제 Tag 모델이 정의된 경로에 맞춰 수정
+    from app.user.model import User  # 실제 User 모델이 정의된 경로에 맞춰 수정
 
 
 class Diary(TimestampMixin, Model):
