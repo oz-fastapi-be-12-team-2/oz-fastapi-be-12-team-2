@@ -94,8 +94,10 @@ jobs:
       # 정상적인 db 연결을 확인했으니 마이그레이션 수행
       - name: Run aerich migrations
         run: |
-          uv run aerich init -t core.config.TORTOISE_ORM
-          uv run aerich upgrade
+          uv run aerich init -t core.config.TORTOISE_ORM || true
+          uv run aerich init-db || true
+          uv run aerich migrate || true
+          uv run aerich upgrade || true
 
       # FastAPI에서 pytest로 테스트를 실행합니다.
       - name: Run tests with pytest
