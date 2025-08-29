@@ -1,3 +1,4 @@
+import json
 from typing import TYPE_CHECKING, Any, Optional
 
 from tortoise import fields
@@ -18,11 +19,18 @@ class Diary(TimestampMixin, Model):
     title = fields.CharField(max_length=50, null=False, index=True)
     content = fields.TextField(null=False)
 
-    # JSON 저장
-    # dict 또는 None 저장 가능. 기본값은 None
+    # JSON 저장, 기본값은 None
     emotion_analysis: Optional[dict[str, Any]] = fields.JSONField(null=True)
 
-    main_emotion = fields.CharEnumField(enum_type=MainEmotionType, null=True)  # ENUM
+    async def save(self, *args, **kwargs):
+        if self.emotion_analysis is not None:
+            if not isinstance(self.emotion_analysis, dict):
+                raise ValueError("emotion_analysis는 dict(JSON object)만 허용합니다.")
+            # 직렬화 가능성 추가 확인(키/값이 직렬화 가능해야 함)
+            json.dumps(self.emotion_analysis, ensure_ascii=False)
+        return await super().save(*args, **kwargs)
+
+    main_emotion = fields.CharEnumField(enum_type=MainEmotionType, null=True)
 
     user: fields.ForeignKeyRelation["User"] = fields.ForeignKeyField(
         "models.User", related_name="diaries", on_delete=fields.CASCADE
