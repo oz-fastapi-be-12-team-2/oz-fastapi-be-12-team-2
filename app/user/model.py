@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from tortoise import Model, fields
 
 from app.diary.model import MainEmotion
+from app.notification.model import NotificationType
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
@@ -21,12 +22,6 @@ class UserRole(StrEnum):
     USER = "user"
     STAFF = "staff"
     SUPERUSER = "superuser"
-
-
-class NotificationType(StrEnum):
-    PUSH = "PUSH"
-    EMAIL = "EMAIL"
-    SMS = "SMS"
 
 
 class User(TimestampMixin, Model):
