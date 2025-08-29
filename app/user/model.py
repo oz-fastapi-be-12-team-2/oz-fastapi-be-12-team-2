@@ -1,9 +1,13 @@
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from tortoise import fields
 from tortoise.model import Model
 
 from app.shared.model import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.notification.model import Notification
 
 
 class UserRole(StrEnum):
@@ -11,10 +15,12 @@ class UserRole(StrEnum):
     STAFF = "staff"
     SUPERUSER = "superuser"
 
+
 class NotificationType(StrEnum):
     PUSH = "PUSH"
     EMAIL = "EMAIL"
     SMS = "SMS"
+
 
 class User(TimestampMixin, Model):
     id = fields.BigIntField(pk=True, generated=True)  # 사용자 ID, AUTO_INCREMENT
@@ -29,10 +35,11 @@ class User(TimestampMixin, Model):
     notification_type = fields.CharEnumField(
         enum_type=NotificationType, default=NotificationType.PUSH
     )
+    # fmt: on
     user_roles = fields.CharEnumField(
-        enum_type=UserRole, default=UserRole.USER
-    user_roles = fields.CharEnumField(
-        enum_type=UserRole, default=UserRole.USER
+        enum_type=UserRole,
+        default=UserRole.USER,
+        # fmt: on
     )  # 유저 권한
 
     notifications: fields.ManyToManyRelation["Notification"]
@@ -42,8 +49,7 @@ class User(TimestampMixin, Model):
         ordering = ["-created_at"]
 
 
-
-#EmotionStats 필드 (확인필요)
+# EmotionStats 필드 (확인필요)
 class EmotionStats(Model):
     stat_id = fields.IntField(pk=True)  # AUTO_INCREMENT PK
     user = fields.ForeignKeyField("models.User", related_name="emotion_stats")  # FK

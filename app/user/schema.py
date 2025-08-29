@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, constr
+from pydantic import BaseModel, EmailStr, Field, constr
 
 
 # 회원가입 시 요청 스키마
@@ -9,7 +9,7 @@ class UserCreate(BaseModel):
     password: constr(min_length=8)  # 최소 8자 이상
     nickname: constr(min_length=2, max_length=20)
     username: str
-    phonenumber: constr(regex=r"^010-\d{4}-\d{4}$")  # 010-0000-0000 형식
+    phone: str = Field(..., regex=r"^010-\d{4}-\d{4}$")  # 010-0000-0000 형식
 
 
 # 로그인 요청 시 스키마
@@ -44,5 +44,5 @@ class LogoutResponse(BaseModel):
     message: str = "Logged out successfully"
 
 
-#class UserNotificationSettingUpdate(BaseModel):
+# class UserNotificationSettingUpdate(BaseModel):
 #    receive_notifications: bool = Field(..., description="알림 수신 여부")

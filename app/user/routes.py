@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Response
-from .schemas import UserCreate, UserLogin, UserResponse, Token, LogoutResponse
-from .models import User
-from .utils import hash_password, verify_password
+
 from .auth import create_access_token, create_refresh_token
+from .models import User
+from .schemas import LogoutResponse, Token, UserCreate, UserLogin, UserResponse
+from .utils import hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
