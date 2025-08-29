@@ -191,7 +191,8 @@ POST /ai/analyze-diary
 응답:
 {
     "main_emotion": "긍정",
-    "emotion_analysis": "{\"main_emotion\":\"긍정\",\"confidence\":0.9,\"reason\":\"행복, 즐거운 등 긍정적 키워드 감지\"}",
+    "emotion_analysis":
+    "{\"main_emotion\":\"긍정\",\"confidence\":0.9,\"reason\":\"행복, 즐거운 등 긍정적 키워드 감지\"}",
     "confidence": 0.9,
     "analysis_date": "2025-08-28T15:30:00Z"
 }
