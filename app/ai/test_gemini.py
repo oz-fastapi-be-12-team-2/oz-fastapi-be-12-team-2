@@ -24,9 +24,7 @@ class MockDiaryEmotionService:
     async def analyze_diary_emotion(
         self, request: DiaryEmotionRequest
     ) -> DiaryEmotionResponse:
-        import json
-
-        # 간단한 키워드 기반 감정 분류
+        # 기존 감정 분류 로직은 동일
         content = request.diary_content.lower()
 
         if any(word in content for word in ["행복", "기쁨", "좋", "즐거운", "감사"]):
@@ -41,16 +39,14 @@ class MockDiaryEmotionService:
             emotion = "중립"
             confidence = 0.6
 
-        analysis = {
-            "main_emotion": emotion,
-            "confidence": confidence,
-            "reason": "키워드 기반 테스트 분석",
-            "key_phrases": ["테스트 키워드"],
-        }
+        # EmotionAnalysis 올바르게 생성
+        emotion_analysis = EmotionAnalysis(
+            reason="키워드 기반 테스트 분석", key_phrases=["테스트 키워드"]
+        )
 
         return DiaryEmotionResponse(
             main_emotion=MainEmotion(emotion),
-            emotion_analysis=EmotionAnalysis(**analysis),  # dict → 모델 변환
+            emotion_analysis=emotion_analysis,  # 이제 올바른 타입
             confidence=confidence,
         )
 
@@ -73,7 +69,7 @@ class TestDiaryEmotionService:
 
         assert result.main_emotion == MainEmotion.POSITIVE
         assert result.confidence >= 0.7
-        assert "긍정" in result.emotion_analysis
+        assert result.emotion_analysis.reason == "키워드 기반 테스트 분석"
         print("긍정적 감정 분석 테스트 통과")
 
     def test_negative_emotion_analysis(self):
@@ -112,17 +108,19 @@ class TestDiaryEmotionService:
 
     def test_emotion_response_schema(self):
         """감정 분석 응답 스키마 테스트"""
-        import json
+
+        emotion_analysis = EmotionAnalysis(reason="테스트 분석", key_phrases=["테스트"])
 
         response = DiaryEmotionResponse(
             main_emotion=MainEmotion.POSITIVE,
-            emotion_analysis=json.dumps({"test": "data"}, ensure_ascii=False),
+            emotion_analysis=emotion_analysis,
             confidence=0.9,
         )
 
         assert response.main_emotion == MainEmotion.POSITIVE
         assert response.confidence == 0.9
-        assert isinstance(response.emotion_analysis, str)
+        assert isinstance(response.emotion_analysis, EmotionAnalysis)
+        assert response.emotion_analysis.reason == "테스트 분석"
         print("응답 스키마 테스트 통과")
 
     def test_db_compatibility(self):
