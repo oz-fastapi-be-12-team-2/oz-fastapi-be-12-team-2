@@ -6,6 +6,7 @@ from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
 from app.ai.router import router as ai_router
+from app.tag.router import router as tag_router
 from core.config import TORTOISE_ORM
 
 DATABASE_URL = "postgresql+asyncpg://diaryapi:diaryapi@localhost:5432/diaryapi"
@@ -57,6 +58,7 @@ app = FastAPI(
 # Gemini api
 # AI 라우터 등록
 app.include_router(ai_router)
+app.include_router(tag_router)
 
 
 @app.get("/")
