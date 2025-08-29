@@ -7,11 +7,12 @@ from dotenv import load_dotenv
 
 from app.diary.model import MainEmotion
 from app.notification.model import NotificationType
-from app.notification.respository import create_notification
+from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
 
 # .env 읽기
 load_dotenv()
+
 
 async def check_weekly_negative_emotions(user_id: int) -> bool:
     """

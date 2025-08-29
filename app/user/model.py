@@ -1,9 +1,8 @@
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from tortoise import Model, fields
 
-from app.diary.model import MainEmotion
 from app.notification.model import NotificationType
 from app.shared.model import TimestampMixin
 
@@ -18,7 +17,6 @@ class PeriodType(StrEnum):
     WEEKLY = "주간"
 
 
-
 # User 관련 Enum
 class UserRole(StrEnum):
     USER = "user"
@@ -26,19 +24,7 @@ class UserRole(StrEnum):
     SUPERUSER = "superuser"
 
 
-class NotificationType(StrEnum):
-    PUSH = "PUSH"
-    EMAIL = "EMAIL"
-    SMS = "SMS"
-
-
-# EmotionStats 관련 Enum
-class PeriodType(str, Enum):
-    DAILY = "일간"
-    WEEKLY = "주간"
-
-
-class EmotionType(str, Enum):
+class EmotionType(StrEnum):
     JOY = "기쁨"
     ANGER = "분노"
     SADNESS = "우울"
@@ -73,11 +59,13 @@ class User(TimestampMixin, Model):
 # EmotionStats 필드
 class EmotionStats(Model):
     stat_id = fields.IntField(pk=True, auto_increment=True)
-    user = fields.ForeignKeyField("models.User", related_name="emotion_stats")
+    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+        "models.User", related_name="emotion_stats"
+    )  # FK
     period_type = fields.CharEnumField(enum_type=PeriodType)
     emotion_type = fields.CharEnumField(enum_type=EmotionType)
     frequency = fields.IntField()
     created_at = fields.DatetimeField(auto_now_add=True)
-    
+
     class Meta:
         table = "emotion_stats"

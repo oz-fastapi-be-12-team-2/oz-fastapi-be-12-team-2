@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
+import jwt
 from fastapi import HTTPException, Request, Response
-from jose import JWTError, jwt
 
 SECRET_KEY = "your_secret_key"
 ALGORITHM = "HS256"  # JWT 토큰 암호화 알고리즘
@@ -50,5 +50,5 @@ def get_current_user(request: Request):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")

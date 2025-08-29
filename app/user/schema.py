@@ -31,6 +31,7 @@ class UserResponse(BaseModel):
     class Config:
         orm_mode = True  # ORM 모델과 호환 (예: SQLAlchemy, TortoiseORM)
 
+
 # 토큰 발급
 class Token(BaseModel):
     access_token: str
