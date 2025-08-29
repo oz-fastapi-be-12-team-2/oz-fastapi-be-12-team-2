@@ -3,12 +3,16 @@ import smtplib
 from datetime import date, datetime, time
 from email.mime.text import MIMEText
 
+# import firebase_admin  # type: ignore
 from dotenv import load_dotenv
 
 from app.diary.model import MainEmotion
 from app.notification.model import NotificationType
 from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
+
+# from firebase_admin import credentials, messaging  # type: ignore
+
 
 # .env 읽기
 load_dotenv()
@@ -77,18 +81,46 @@ async def send_notifications():
 # PUSH
 async def send_push_notification(user: User, message: str):
     print(f"[PUSH] to {user.nickname}: {message}")
+    # Firebase 푸쉬 알림을 위해서는 앱에서 발급받는 토큰 필요 -> 서버만 있는 상태에서는 사용 불가
 
-    # # FCM(Firebase Cloud Messaging) 사용
-    # if not user.push_token:
+    # # Firebase 초기화
+    # if not firebase_admin._apps:
+    #     cred = credentials.Certificate({
+    #         "type": "service_account",
+    #         "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+    #         "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+    #         "private_key": (os.getenv("FIREBASE_PRIVATE_KEY") or "").replace("\\n", "\n"),
+    #         "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+    #         "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+    #         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    #         "token_uri": "https://oauth2.googleapis.com/token",
+    #         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    #         "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
+    #     })
+    #     firebase_admin.initialize_app(cred)
+    #
+    # """
+    # :param user: FCM 토큰을 가진 사용자 객체 (user.fcm_token)
+    # :param message: 알림 내용
+    # """
+    # if not getattr(user, "fcm_token", None):
+    #     print("❌ 푸시 발송 실패: FCM 토큰 없음")
     #     return
-    # payload = {
-    #     "to": user.push_token,
-    #     "notification": {"title": "오늘의 감정 알림", "body": message},
-    # }
-    # # aiohttp 또는 httpx로 FCM API 호출
-    # async with httpx.AsyncClient() as client:
-    #     await client.post("https://fcm.googleapis.com/fcm/send", json=payload,
-    #                       headers={"Authorization": f"key={FCM_SERVER_KEY}"})
+    #
+    # msg = messaging.Message(
+    #     notification=messaging.Notification(
+    #         title="[Diary] 힘든 하루를 보냈나요?",
+    #         body=message
+    #     ),
+    #     token=user.fcm_token,
+    # )
+    #
+    # try:
+    #     response = messaging.send(msg)
+    #     print("✅ 푸시 발송 성공!")
+    #     print(f"[FCM] to {user.nickname}: {message}, response={response}")
+    # except Exception as e:
+    #     print("❌ 푸시 발송 실패:", e)
 
 
 # SMS
@@ -127,22 +159,3 @@ async def send_email(user: User, message: str):
             print(f"[EMAIL] to {user.nickname}: {message}")
     except Exception as e:
         print("❌ 이메일 발송 실패:", e)
-
-    # # FastAPI BackgroundTasks + aiosmtplib
-    # from email.message import EmailMessage
-    # import aiosmtplib
-    #
-    # email = EmailMessage()
-    # email["From"] = SMTP_FROM
-    # email["To"] = user.email
-    # email["Subject"] = "오늘의 감정 알림"
-    # email.set_content(message)
-    #
-    # await aiosmtplib.send(
-    #     email,
-    #     hostname=SMTP_HOST,
-    #     port=SMTP_PORT,
-    #     username=SMTP_USER,
-    #     password=SMTP_PASSWORD,
-    #     start_tls=True,
-    # )
