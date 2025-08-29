@@ -1,57 +1,53 @@
+import json
 from datetime import datetime
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Optional
 
 from tortoise.transactions import in_transaction
 
 from app.diary.model import Diary, Image
+from app.diary.schema import DiaryCreate, EmotionAnalysis, TagIn
 from app.tag.model import Tag
 
 
-# -----------------------------------------------------------------------------
+def _dumps_ea(ea: Optional[EmotionAnalysis | dict[str, Any]]) -> Optional[str]:
+    """
+    EmotionAnalysis(Pydantic)이나 dict를 DB 저장용 JSON 문자열로 변환
+    """
+    if ea is None:
+        return None
+    if isinstance(ea, dict):
+        return json.dumps(ea, ensure_ascii=False)
+    return json.dumps(ea.model_dump(exclude_none=True), ensure_ascii=False)
+
+
+# -----------------get_or_create------------------------------------------------------------
 # CREATE
 # -----------------------------------------------------------------------------
-async def create(
-    *,
-    title: str,
-    content: str,
-    main_emotion: Optional[str],
-    emotion_analysis: Optional[dict],
-    user_id: int,
-    tags: Optional[Sequence[str]],
-    images: Optional[Sequence[str]],
-) -> Diary:
-    """
-    다이어리 생성
-    - 기본 정보 저장
-    - tags → find-or-create 후 연결
-    - images → 순서(order)와 함께 생성
-    """
-    async with in_transaction():
-        diary = await Diary.create(
-            title=title,
-            content=content,
-            main_emotion=main_emotion,
-            emotion_analysis=emotion_analysis,
-            user_id=user_id,
-        )
+async def create(payload: DiaryCreate) -> Diary:
+    diary = await Diary.create(
+        title=payload.title,
+        content=payload.content,
+        main_emotion=payload.main_emotion,
+        emotion_analysis=_dumps_ea(payload.emotion_analysis),
+        user_id=payload.user_id,
+    )
 
-        # 태그 처리
-        if tags:
-            tag_objs = []
-            for name in tags:
-                tag, _ = await Tag.get_or_create(name=name)
-                tag_objs.append(tag)
-            if tag_objs:
-                await diary.tags.add(*tag_objs)
+    # 태그 처리: TagIn 객체 리스트
+    if payload.tags:
+        tag_objs = []
+        for t in payload.tags:
+            tag, _ = await Tag.get_or_create(tag_name=t.name)
+            tag_objs.append(tag)
+        if tag_objs:
+            await diary.tags.add(*tag_objs)
 
-        # 이미지 처리
-        if images:
-            for i, url in enumerate(images, start=1):
-                await Image.create(diary=diary, order=i, image=url)
+    # 이미지 처리
+    if payload.images:
+        for i, url in enumerate(payload.images, start=1):
+            await Image.create(diary=diary, order=i, image=url)
 
-        # 관계 미리 로드
-        await diary.fetch_related("tags", "images", "user")
-        return diary
+    await diary.fetch_related("images", "tags", "user")
+    return diary
 
 
 # -----------------------------------------------------------------------------
@@ -128,21 +124,11 @@ async def update_partially(diary: Diary, patch: dict[str, Any]) -> Diary:
     return diary
 
 
-async def replace_tags(diary: Diary, names: Iterable[str]) -> None:
-    """
-    태그 전체 교체: 입력된 이름들로 upsert 후 연결을 교체
-    """
-    async with in_transaction():
-        await diary.tags.clear()
-        tag_objs = []
-        for name in names:
-            norm = name.strip()
-            if not norm:
-                continue
-            tag, _ = await Tag.get_or_create(name=norm)
-            tag_objs.append(tag)
-        if tag_objs:
-            await diary.tags.add(*tag_objs)
+async def replace_tags(diary: Diary, tags: list[TagIn]) -> None:
+    await diary.tags.clear()
+    for t in tags:
+        tag, _ = await Tag.get_or_create(tag_name=t.name)
+        await diary.tags.add(tag)
 
 
 async def replace_images(diary: Diary, urls: Iterable[str]) -> None:

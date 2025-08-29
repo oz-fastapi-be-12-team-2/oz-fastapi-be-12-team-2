@@ -25,7 +25,9 @@ class Diary(TimestampMixin, Model):
     content = fields.TextField(null=False)
 
     # JSON 저장
-    emotion_analysis: Optional[dict[str, Any]]
+    # dict 또는 None 저장 가능. 기본값은 None
+    emotion_analysis: Optional[dict[str, Any]] = fields.JSONField(null=True)
+
     main_emotion = fields.CharEnumField(enum_type=MainEmotion, null=True)  # ENUM
 
     user: fields.ForeignKeyRelation["User"] = fields.ForeignKeyField(

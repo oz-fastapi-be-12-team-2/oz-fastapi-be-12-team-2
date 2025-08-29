@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Mapping, Optional
 
 from app.diary import repository
 from app.diary.model import MainEmotion
@@ -30,9 +30,17 @@ def _ea_to_dict(ea: Optional[EmotionAnalysis]) -> Optional[dict]:
 
 # main_emotion이 없을 때, emotion_analysis 기반으로 최종 감정을 추론하는 함수
 def _infer_final_emotion(
-    main_emotion: Optional[str | MainEmotion], ea: Optional[dict]
+    main_emotion: Optional[str | MainEmotion],
+    ea: Optional[Mapping[str, Any]],
 ) -> str:
-    # main_emotion이 지정돼 있으면 그대로 반환
+    """
+    main_emotion이 없을 때 emotion_analysis 기반으로 최종 감정을 추론
+    - main_emotion 우선
+    - 없으면 ea["label"]
+    - 그래도 없으면 positive/negative/neutral 점수 중 가장 높은 값
+    - 아무 정보가 없으면 "UNSPECIFIED"
+    """
+    # 1) main_emotion 지정돼 있으면 그대로 반환
     if main_emotion:
         return (
             main_emotion.value
@@ -40,21 +48,29 @@ def _infer_final_emotion(
             else str(main_emotion)
         )
 
-    # emotion_analysis(JSON dict)에서 label이나 점수를 확인
-    ea = ea or {}
+    # 2) ea가 없으면 추론 불가
+    if ea is None:
+        return "UNSPECIFIED"
+
+    # 3) label 직접 지정돼 있으면 그대로 반환
     label = ea.get("label")
-    if label:
+    if isinstance(label, str) and label:
         return label
 
-    # 점수 기반으로 가장 높은 감정을 추론
-    scores = {k: ea.get(k) for k in ("positive", "negative", "neutral")}
-    scores = {k: v for k, v in scores.items() if isinstance(v, (int, float))}
-    if scores:
-        k = max(scores, key=lambda k: scores[k])
-        return {"positive": "긍정", "negative": "부정", "neutral": "중립"}[k]
+    # 4) 점수 기반 추론
+    scores: Dict[str, float] = {}
+    for key in ("positive", "negative", "neutral"):
+        v = ea.get(key)
+        if isinstance(v, (int, float)):
+            scores[key] = float(v)
 
-    # 아무 정보가 없으면 UNSPECIFIED
-    return "UNSPECIFIED"
+    if not scores:
+        return "UNSPECIFIED"
+
+    best_key, _ = max(scores.items(), key=lambda kv: kv[1])
+    return {"positive": "긍정", "negative": "부정", "neutral": "중립"}.get(
+        best_key, "UNSPECIFIED"
+    )
 
 
 # Diary ORM 객체 → DiaryResponse(Pydantic) 변환
@@ -71,7 +87,10 @@ def to_diary_response(diary) -> DiaryResponse:
         content=diary.content,
         main_emotion=diary.main_emotion,
         emotion_analysis=diary.emotion_analysis,
-        tags=[TagOut(name=t.name) for t in getattr(diary, "tags", [])],
+        # tags=[TagOut(name=t.name) for t in getattr(diary, "tags", [])],
+        tags=[
+            TagOut(name=getattr(t, "tag_name", "")) for t in getattr(diary, "tags", [])
+        ],
         images=[
             DiaryImageOut(
                 url=getattr(
@@ -101,15 +120,16 @@ class DiaryService:
         - EmotionAnalysis는 JSON 직렬화해서 DB 저장
         - 결과를 DiaryResponse 형태로 변환 후 반환
         """
-        created = await repository.create(
-            title=payload.title,
-            content=payload.content,
-            main_emotion=(payload.main_emotion.value if payload.main_emotion else None),
-            emotion_analysis=_ea_to_dict(payload.emotion_analysis),
-            user_id=payload.user_id,
-            tags=payload.tags or [],
-            images=payload.images or [],
-        )
+        created = await repository.create(payload)
+        # created = await repository.create(
+        #     title=payload.title,
+        #     content=payload.content,
+        #     main_emotion=(payload.main_emotion.value if payload.main_emotion else None),
+        #     emotion_analysis=_ea_to_dict(payload.emotion_analysis),
+        #     user_id=payload.user_id,
+        #     tags=payload.tags or [],
+        #     images=payload.images or [],
+        # )
         return to_diary_response(created)
 
     @staticmethod
@@ -205,24 +225,55 @@ class DiaryService:
     ) -> dict[str, int]:
         """
         감정 통계 서비스
-        - 특정 유저/기간에 해당하는 다이어리들을 모아 주요 감정별 개수 집계
+        - 특정 유저/기간 조건에 맞는 다이어리를 모아 주요 감정별 개수 집계
         - inferred=True → main_emotion이 없을 경우 emotion_analysis 기반으로 추론
         """
+
+        # 1) 조건에 맞는 다이어리 전부 조회 (사실상 전체)
         rows, _ = await repository.list_by_filters(
             user_id=user_id,
             main_emotion=None,
             date_from=date_from,
             date_to=date_to,
             page=1,
-            page_size=10_000_000,  # 사실상 전체 조회
+            page_size=10_000_000,
         )
+
+        # 2) emotion_analysis 값을 dict(매핑)으로 통일하는 헬퍼
+        def _ea_to_mapping(ea: Any) -> Optional[Mapping[str, Any]]:
+            # DB 컬럼이 Text(JSON 문자열)일 수도 있고, JSONField(dict)일 수도 있음
+            if ea is None:
+                return None
+            if isinstance(ea, str):
+                try:
+                    loaded = json.loads(ea)
+                    return loaded if isinstance(loaded, dict) else None
+                except Exception:
+                    return None
+            if isinstance(ea, dict):
+                return ea
+            return None
+
+        # 3) main_emotion을 문자열로 통일하는 헬퍼 (Enum/str 혼용 대비)
+        def _norm_emotion(e: Optional[str | MainEmotion]) -> Optional[str]:
+            if e is None:
+                return None
+            return e.value if isinstance(e, MainEmotion) else str(e)
+
+        # 4) 카운터로 감정별 집계
         counter: Counter[str] = Counter()
+
         for r in rows:
             if inferred:
-                ea = json.loads(r.emotion_analysis) if r.emotion_analysis else None
-                emo = _infer_final_emotion(r.main_emotion, ea)
-                counter[emo] += 1
+                # 추론 모드: main_emotion이 없으면 emotion_analysis 기반으로 결정
+                ea_map = _ea_to_mapping(r.emotion_analysis)
+                final_label: str = _infer_final_emotion(r.main_emotion, ea_map)
+                counter[final_label] += 1
             else:
-                if r.main_emotion:
-                    counter[r.main_emotion] += 1
+                # 비추론 모드: main_emotion만 사용 (없으면 카운트 생략)
+                label = _norm_emotion(r.main_emotion)  # Optional[str]
+                if label is not None:
+                    counter[label] += 1
+
+        # 5) {"긍정": 3, "부정": 1, "중립": 2, "UNSPECIFIED": 0, ...} 형태로 반환
         return dict(counter)
