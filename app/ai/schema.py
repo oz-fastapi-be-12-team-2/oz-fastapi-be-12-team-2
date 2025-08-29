@@ -1,16 +1,9 @@
-from datetime import datetime
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 from pydantic import BaseModel, Field
 
-
-class MainEmotionType(str, Enum):
-    """메인 감정 타입 (기존 DB와 동일)"""
-
-    POSITIVE = "긍정"
-    NEGATIVE = "부정"
-    NEUTRAL = "중립"
+from app.diary.model import MainEmotion
 
 
 class PeriodType(str, Enum):
@@ -30,10 +23,9 @@ class DiaryEmotionRequest(BaseModel):
 class DiaryEmotionResponse(BaseModel):
     """일기 감정 분석 응답"""
 
-    main_emotion: MainEmotionType = Field(..., description="주요 감정")
-    emotion_analysis: str = Field(..., description="분석 결과 JSON 문자열")
+    main_emotion: MainEmotion = Field(..., description="주요 감정")
+    emotion_analysis: Optional[dict[str, Any]] = Field(..., description="분석 결과 JSON 문자열")
     confidence: float = Field(..., description="분석 신뢰도", ge=0, le=1)
-    analysis_date: datetime = Field(default_factory=datetime.now)
 
 
 class EmotionStatsResponse(BaseModel):
