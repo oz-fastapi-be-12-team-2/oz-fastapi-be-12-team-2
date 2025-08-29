@@ -39,29 +39,22 @@ async def lifespan(app: FastAPI):
     # 앱 종료 시 DB 연결 닫기
     await Tortoise.close_connections()
 
-
-app = FastAPI(lifespan=lifespan)
-
-# lifespan check
-
-# app.get("/lifespancheck")
-# async def db_check():
-#   async with in_transaction() as conn:
-#       result = await conn.execute_query("SELECT 1")
-#     return {"db_ok": result[0][0] == 1}
-
-
-# Gemini api
-
 app = FastAPI(
     title="FastAPI with AI Service",
     description="Gemini API를 사용하는 FastAPI 애플리케이션",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
-# AI 라우터 등록
+lifespan check
+app.get("/lifespancheck")
+async def db_check():
+async with in_transaction() as conn:
+result = await conn.execute_query("SELECT 1")
+return {"db_ok": result[0][0] == 1}
+Gemini api
+AI 라우터 등록
 app.include_router(ai_router)
-
 
 @app.get("/")
 def read_root():

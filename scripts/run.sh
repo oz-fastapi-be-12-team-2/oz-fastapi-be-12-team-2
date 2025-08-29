@@ -13,4 +13,5 @@ uv run aerich migrate || true
 uv run aerich upgrade || true
 
 # FastAPI 앱 실행 (개발용 --reload 포함)
+# app.main:app 에서 app.main은 위치를, :app은 main.py의 FastAPI 인스턴스 이름
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

@@ -1,10 +1,6 @@
 version = 1
 revision = 2
 requires-python = ">=3.12"
-resolution-markers = [
-    "python_full_version >= '3.13'",
-    "python_full_version < '3.13'",
-]
 
 [[package]]
 name = "aerich"
@@ -341,9 +337,11 @@ dev = [
     { name = "autoflake" },
     { name = "black" },
     { name = "flake8" },
+    { name = "httpx" },
     { name = "isort" },
     { name = "pre-commit" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
 
@@ -371,9 +369,11 @@ dev = [
     { name = "autoflake", specifier = "==2.3.1" },
     { name = "black", specifier = "==25.1.0" },
     { name = "flake8", specifier = "==7.3.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "isort", specifier = "==6.0.1" },
     { name = "pre-commit", specifier = "==4.3.0" },
     { name = "pytest", specifier = "==8.4.1" },
+    { name = "pytest-asyncio", specifier = ">=1.1.0" },
     { name = "ruff", specifier = "==0.12.10" },
 ]
 

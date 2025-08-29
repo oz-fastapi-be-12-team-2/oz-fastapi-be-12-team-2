@@ -1,13 +1,13 @@
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/psf/black
-    rev: 25.1.0  # Black 버전
+    rev: 25.1.0 # Black 버전
     hooks:
       - id: black
         language_version: python3.12
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.12.10  # ruff 버전
+    rev: v0.12.10 # ruff 버전
     hooks:
       - id: ruff
         args: ["--fix"]

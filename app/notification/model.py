@@ -21,6 +21,7 @@ class Notification(TimestampMixin, Model):
     content = fields.CharField(max_length=255, null=True)
     alert_type = fields.CharEnumField(AlertType)
 
+    # 타입 힌트는 문자열로 ("User") → 타입체커는 TYPE_CHECKING import 를 보고 인식
     user: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
         "models.User",
         related_name="notifications",
