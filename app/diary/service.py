@@ -5,8 +5,8 @@ from collections import Counter
 from datetime import datetime
 from typing import Any, Dict, Mapping, Optional
 
+from app.ai.schema import MainEmotionType
 from app.diary import repository
-from app.diary.model import MainEmotion
 from app.diary.schema import (
     DiaryCreate,
     DiaryImageOut,
@@ -30,7 +30,7 @@ def _ea_to_dict(ea: Optional[EmotionAnalysis]) -> Optional[dict]:
 
 # main_emotion이 없을 때, emotion_analysis 기반으로 최종 감정을 추론하는 함수
 def _infer_final_emotion(
-    main_emotion: Optional[str | MainEmotion],
+    main_emotion: Optional[str | MainEmotionType],
     ea: Optional[Mapping[str, Any]],
 ) -> str:
     """
@@ -44,7 +44,7 @@ def _infer_final_emotion(
     if main_emotion:
         return (
             main_emotion.value
-            if isinstance(main_emotion, MainEmotion)
+            if isinstance(main_emotion, MainEmotionType)
             else str(main_emotion)
         )
 
@@ -186,7 +186,7 @@ class DiaryService:
         if payload.main_emotion is not None:
             patch["main_emotion"] = (
                 payload.main_emotion.value
-                if isinstance(payload.main_emotion, MainEmotion)
+                if isinstance(payload.main_emotion, MainEmotionType)
                 else payload.main_emotion
             )
         if payload.emotion_analysis is not None:
@@ -255,10 +255,10 @@ class DiaryService:
             return None
 
         # 3) main_emotion을 문자열로 통일하는 헬퍼 (Enum/str 혼용 대비)
-        def _norm_emotion(e: Optional[str | MainEmotion]) -> Optional[str]:
+        def _norm_emotion(e: Optional[str | MainEmotionType]) -> Optional[str]:
             if e is None:
                 return None
-            return e.value if isinstance(e, MainEmotion) else str(e)
+            return e.value if isinstance(e, MainEmotionType) else str(e)
 
         # 4) 카운터로 감정별 집계
         counter: Counter[str] = Counter()

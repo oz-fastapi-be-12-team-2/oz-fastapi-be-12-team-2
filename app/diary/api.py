@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.diary.model import MainEmotion
+from app.ai.schema import MainEmotionType
 from app.diary.schema import (
     DiaryCreate,
     DiaryListItem,
@@ -111,7 +111,7 @@ async def get_diary(diary_id: int):
 async def list_diaries(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
     # ✅ Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
-    main_emotion: Optional[MainEmotion] = Query(
+    main_emotion: Optional[MainEmotionType] = Query(
         None, description="주요 감정 라벨로 필터링"
     ),
     date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
@@ -129,7 +129,7 @@ async def list_diaries(
         user_id=user_id,
         main_emotion=(
             main_emotion.value
-            if isinstance(main_emotion, MainEmotion)
+            if isinstance(main_emotion, MainEmotionType)
             else main_emotion
         ),
         date_from=date_from,

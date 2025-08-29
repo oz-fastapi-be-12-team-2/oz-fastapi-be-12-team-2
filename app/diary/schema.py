@@ -6,7 +6,7 @@ from typing import Annotated, Any, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.diary.model import MainEmotion  # Enum 가정: '긍정'/'부정'/'중립' 등
+from app.ai.schema import MainEmotionType
 
 # ============================================================
 # 1) 공통 유효성 타입(제약 모음)
@@ -29,7 +29,7 @@ class EmotionAnalysis(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    label: Optional[MainEmotion] = Field(
+    label: Optional[MainEmotionType] = Field(
         default=None, description="모델이 예측한 대표 감정 라벨(없으면 null)"
     )
     positive: Optional[float] = Field(None, ge=0.0, le=1.0)
@@ -74,7 +74,7 @@ class DiaryBase(BaseModel):
 
     title: DiaryTitle
     content: DiaryContent
-    main_emotion: Optional[MainEmotion] = Field(
+    main_emotion: Optional[MainEmotionType] = Field(
         default=None, description="주요 감정. 미지정 시 null"
     )
 
@@ -147,7 +147,7 @@ class DiaryUpdate(BaseModel):
 
     title: Optional[DiaryTitle] = None
     content: Optional[DiaryContent] = None
-    main_emotion: Optional[MainEmotion] = None
+    main_emotion: Optional[MainEmotionType] = None
     emotion_analysis: Optional[EmotionAnalysis] = None
     tags: Optional[list[TagIn]] = None
     images: Optional[list[str]] = None
@@ -224,7 +224,7 @@ class DiaryListItem(BaseModel):
     diary_id: int
     user_id: int
     title: str
-    main_emotion: Optional[MainEmotion] = None
+    main_emotion: Optional[MainEmotionType] = None
     created_at: datetime
 
 

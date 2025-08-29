@@ -1,20 +1,14 @@
-from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Optional
 
 from tortoise import fields
 from tortoise.models import Model
 
+from app.ai.schema import MainEmotionType
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
     from app.tag.model import Tag
     from app.user.model import User
-
-
-class MainEmotion(StrEnum):
-    POSITIVE = "긍정"
-    NEGATIVE = "부정"
-    NEUTRAL = "중립"
 
 
 class Diary(TimestampMixin, Model):
@@ -28,7 +22,7 @@ class Diary(TimestampMixin, Model):
     # dict 또는 None 저장 가능. 기본값은 None
     emotion_analysis: Optional[dict[str, Any]] = fields.JSONField(null=True)
 
-    main_emotion = fields.CharEnumField(enum_type=MainEmotion, null=True)  # ENUM
+    main_emotion = fields.CharEnumField(enum_type=MainEmotionType, null=True)  # ENUM
 
     user: fields.ForeignKeyRelation["User"] = fields.ForeignKeyField(
         "models.User", related_name="diaries", on_delete=fields.CASCADE
