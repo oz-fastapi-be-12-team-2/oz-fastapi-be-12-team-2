@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import json
 from collections import Counter
-from datetime import datetime
-from typing import Any, Dict, Mapping, Optional
+from datetime import date, datetime
+from typing import Any, Dict, Mapping, Optional, Union
 
-from app.ai.schema import MainEmotionType
+from app.ai.schema import DiaryEmotionResponse, MainEmotionType
 from app.diary import repository
 from app.diary.schema import (
     DiaryCreate,
     DiaryImageOut,
     DiaryResponse,
     DiaryUpdate,
-    EmotionAnalysis,
     TagOut,
 )
 
@@ -21,11 +19,11 @@ from app.diary.schema import (
 # ---------------------------------------------------------------------
 
 
-# EmotionAnalysis → dict 변환 (DB 저장 시 JSON으로 직렬화하기 위함)
-def _ea_to_dict(ea: Optional[EmotionAnalysis]) -> Optional[dict]:
+# DiaryEmotionResponse → dict 변환 (DB 저장 시 JSON으로 직렬화하기 위함)
+def _ea_to_dict(ea: Optional[DiaryEmotionResponse]) -> Optional[dict]:
     if ea is None:
         return None
-    return ea.dict()  # pydantic v1 기준
+    return ea.model_dump()  # pydantic v1 기준
 
 
 # main_emotion이 없을 때, emotion_analysis 기반으로 최종 감정을 추론하는 함수
@@ -34,7 +32,7 @@ def _infer_final_emotion(
     ea: Optional[Mapping[str, Any]],
 ) -> str:
     """
-    main_emotion이 없을 때 emotion_analysis 기반으로 최종 감정을 추론
+    main_emotion이 있는 diary 대상으로
     - main_emotion 우선
     - 없으면 ea["label"]
     - 그래도 없으면 positive/negative/neutral 점수 중 가장 높은 값
@@ -105,6 +103,25 @@ def to_diary_response(diary) -> DiaryResponse:
     )
 
 
+# main_emotion을 문자열로 통일하는 헬퍼 (Enum/str 혼용 대비)
+def _norm_emotion(e: Optional[Union[str, MainEmotionType]]) -> Optional[str]:
+    if e is None:
+        return None
+
+    if isinstance(e, MainEmotionType):
+        return e.value
+
+    s = str(e).strip()
+    if not s:
+        raise ValueError("main_emotion은 비어 있을 수 없습니다.")
+
+    try:
+        return MainEmotionType(s).value
+    except ValueError:
+        allowed = ", ".join(m.value for m in MainEmotionType)
+        raise ValueError(f"Invalid main_emotion: {s!r}. 허용값: [{allowed}]")
+
+
 # ---------------------------------------------------------------------
 # 서비스 계층 (비즈니스 로직 담당)
 # 컨트롤러(api.py)와 DB(repository.py) 사이에서 중간 역할
@@ -117,19 +134,10 @@ class DiaryService:
         """
         다이어리 생성 서비스
         - repository.create 호출해서 DB 저장
-        - EmotionAnalysis는 JSON 직렬화해서 DB 저장
+        - DiaryEmotionResponse JSON 직렬화해서 DB 저장
         - 결과를 DiaryResponse 형태로 변환 후 반환
         """
         created = await repository.create(payload)
-        # created = await repository.create(
-        #     title=payload.title,
-        #     content=payload.content,
-        #     main_emotion=(payload.main_emotion.value if payload.main_emotion else None),
-        #     emotion_analysis=_ea_to_dict(payload.emotion_analysis),
-        #     user_id=payload.user_id,
-        #     tags=payload.tags or [],
-        #     images=payload.images or [],
-        # )
         return to_diary_response(created)
 
     @staticmethod
@@ -219,14 +227,13 @@ class DiaryService:
     async def emotion_stats(
         *,
         user_id: Optional[int] = None,
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
-        inferred: bool = True,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
     ) -> dict[str, int]:
         """
         감정 통계 서비스
         - 특정 유저/기간 조건에 맞는 다이어리를 모아 주요 감정별 개수 집계
-        - inferred=True → main_emotion이 없을 경우 emotion_analysis 기반으로 추론
+        - main_emotion이 없을 경우 skip, 있는 경우만 통계
         """
 
         # 1) 조건에 맞는 다이어리 전부 조회 (사실상 전체)
@@ -239,41 +246,14 @@ class DiaryService:
             page_size=10_000_000,
         )
 
-        # 2) emotion_analysis 값을 dict(매핑)으로 통일하는 헬퍼
-        def _ea_to_mapping(ea: Any) -> Optional[Mapping[str, Any]]:
-            # DB 컬럼이 Text(JSON 문자열)일 수도 있고, JSONField(dict)일 수도 있음
-            if ea is None:
-                return None
-            if isinstance(ea, str):
-                try:
-                    loaded = json.loads(ea)
-                    return loaded if isinstance(loaded, dict) else None
-                except Exception:
-                    return None
-            if isinstance(ea, dict):
-                return ea
-            return None
-
-        # 3) main_emotion을 문자열로 통일하는 헬퍼 (Enum/str 혼용 대비)
-        def _norm_emotion(e: Optional[str | MainEmotionType]) -> Optional[str]:
-            if e is None:
-                return None
-            return e.value if isinstance(e, MainEmotionType) else str(e)
-
-        # 4) 카운터로 감정별 집계
+        # 2) 카운터로 감정별 집계
         counter: Counter[str] = Counter()
 
         for r in rows:
-            if inferred:
-                # 추론 모드: main_emotion이 없으면 emotion_analysis 기반으로 결정
-                ea_map = _ea_to_mapping(r.emotion_analysis)
-                final_label: str = _infer_final_emotion(r.main_emotion, ea_map)
-                counter[final_label] += 1
-            else:
-                # 비추론 모드: main_emotion만 사용 (없으면 카운트 생략)
-                label = _norm_emotion(r.main_emotion)  # Optional[str]
-                if label is not None:
-                    counter[label] += 1
+            # main_emotion만 사용 (없으면 카운트 생략)
+            label = _norm_emotion(r.main_emotion)
+            if label is not None:
+                counter[label] += 1
 
         # 5) {"긍정": 3, "부정": 1, "중립": 2, "UNSPECIFIED": 0, ...} 형태로 반환
         return dict(counter)
