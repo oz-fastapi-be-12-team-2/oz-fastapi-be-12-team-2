@@ -30,6 +30,23 @@ dev = [
 
 [tool.ruff]
 line-length = 120
+exclude = ["migrations", ".venv"]
+
+[tool.ruff.lint]
+# 자동수정은 임포트 정렬(I)만 허용
+select = ["I"]
+# 필요 시 보고 전용 규칙(F/E/W 등)은 실행 스크립트에서 --extend-select로 켜야함
+fixable = ["I"]
+
+[tool.ruff.format]
+# Black과 호환 포매터 (선택)
+quote-style = "double"
+indent-style = "space"
+
+[tool.isort]
+# isort를 계속 쓸 경우 충돌 방지용(쓰지 않더라도 설정만 존재해도 무방)
+profile = "black"
+line_length = 120
 
 [tool.flake8]
 max-line-length = 120
