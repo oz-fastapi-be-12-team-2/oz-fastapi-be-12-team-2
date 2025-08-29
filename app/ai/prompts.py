@@ -19,7 +19,7 @@ class SimpleEmotionPrompts:
     "main_emotion": "긍정|부정|중립",
     "confidence": 0.85,
     "reason": "분석 근거를 간단히 설명",
-    "key_phrases": ["감정을 나타내는 주요 문구들"]
+    "key_phrases": ["감정을 나타내는 주요 문구들"],
 }}
 
 분석 기준:
