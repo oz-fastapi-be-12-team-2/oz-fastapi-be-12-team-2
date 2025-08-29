@@ -9,7 +9,7 @@ class UserCreate(BaseModel):
     password: constr(min_length=8)  # 최소 8자 이상
     nickname: constr(min_length=2, max_length=20)
     username: str
-    phone: str = Field(..., regex=r"^010-\d{4}-\d{4}$")  # 010-0000-0000 형식
+    phone: str = Field(..., pattern=r"^010-\d{4}-\d{4}$")  # 010-0000-0000 형식
 
 
 # 로그인 요청 시 스키마
