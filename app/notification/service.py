@@ -69,7 +69,9 @@ async def send_notifications():
 
             if notification:
                 if TEST_MODE:
-                    print(f"[{user.notification_type}] to {user.nickname}: {message}")
+                    print(
+                        f"[{user.notification_type.value}] to {user.nickname}: {message}"
+                    )
                 else:
                     if user.notification_type == NotificationType.PUSH:
                         await send_push_notification(user, message)
@@ -88,10 +90,6 @@ async def send_push_notification(user: User, message: str):
     pass
     # Firebase 푸쉬 알림을 위해서는 앱에서 발급받는 토큰 필요 -> 서버만 있는 상태에서는 사용 불가
 
-    # if TEST_MODE:
-    #     print(f"[PUSH] to {user.nickname}: {message}")
-    #     return
-    #
     # # Firebase 초기화
     # if not firebase_admin._apps:
     #     cred = credentials.Certificate({
