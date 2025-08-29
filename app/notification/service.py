@@ -13,7 +13,6 @@ from app.user.model import EmotionStats, PeriodType, User
 # .env 읽기
 load_dotenv()
 
-
 async def check_weekly_negative_emotions(user_id: int) -> bool:
     """
     주간 단위 부정적 감정 5회 이상 기록 여부 체크

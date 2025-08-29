@@ -6,10 +6,17 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "aerich==0.9.1",
+    "anyio>=4.10.0",
     "asyncpg==0.30.0",
     "coverage==7.10.5",
     "fastapi==0.116.1",
+    "google-generativeai>=0.8.5",
+    "httpx>=0.28.1",
     "mypy==1.17.1",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
     "python-dotenv==1.1.1",
     "tortoise-orm==0.25.1",
     "uvicorn==0.35.0",
@@ -20,14 +27,33 @@ dev = [
     "autoflake==2.3.1",
     "black==25.1.0",
     "flake8==7.3.0",
+    "httpx>=0.28.1",
     "isort==6.0.1",
     "pre-commit==4.3.0",
     "pytest==8.4.1",
+    "pytest-asyncio>=1.1.0",
     "ruff==0.12.10",
 ]
 
 [tool.ruff]
 line-length = 120
+exclude = ["migrations", ".venv"]
+
+[tool.ruff.lint]
+# 자동수정은 임포트 정렬(I)만 허용
+select = ["I"]
+# 필요 시 보고 전용 규칙(F/E/W 등)은 실행 스크립트에서 --extend-select로 켜야함
+fixable = ["I"]
+
+[tool.ruff.format]
+# Black과 호환 포매터 (선택)
+quote-style = "double"
+indent-style = "space"
+
+[tool.isort]
+# isort를 계속 쓸 경우 충돌 방지용(쓰지 않더라도 설정만 존재해도 무방)
+profile = "black"
+line_length = 120
 
 [tool.flake8]
 max-line-length = 120

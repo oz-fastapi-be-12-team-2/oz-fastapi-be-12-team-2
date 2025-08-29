@@ -5,8 +5,7 @@ COLOR_NC=`tput sgr0;`        # 색상 초기화
 
 # -----------------------------------------------------------
 # 불필요한 import / 사용하지 않는 변수 자동 제거
-# --------------------------------------
-#---------------------
+# -----------------------------------------------------------
 echo "Starting autoflake"
 uv run autoflake --remove-all-unused-imports --remove-unused-variables --in-place --recursive .
 echo "OK"
