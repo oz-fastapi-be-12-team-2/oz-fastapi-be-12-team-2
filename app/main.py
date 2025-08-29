@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
+from app.ai.router import router as ai_router
 from core.config import TORTOISE_ORM
 
 DATABASE_URL = "postgresql+asyncpg://diaryapi:diaryapi@localhost:5432/diaryapi"
@@ -51,8 +52,6 @@ app = FastAPI(lifespan=lifespan)
 
 
 # Gemini api
-from fastapi import FastAPI
-from app.ai.router import router as ai_router
 
 app = FastAPI(
     title="FastAPI with AI Service",

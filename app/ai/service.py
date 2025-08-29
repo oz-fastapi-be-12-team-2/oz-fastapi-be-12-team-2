@@ -1,58 +1,108 @@
+import json
+import re
+
 import google.generativeai as genai
-from core.exceptions import AIServiceError
+
 from core.config import AI_SETTINGS
-from .schema import GenerateResponse
+from core.exceptions import AIServiceError
+
+from .prompts import SimpleEmotionPrompts
+from .schema import DiaryEmotionRequest, DiaryEmotionResponse, MainEmotionType
 
 
-class AIService:
-    """AI 서비스 클래스"""
+class DiaryEmotionService:
+    """일기 감정 분석 서비스"""
 
     def __init__(self):
         """AI 서비스 초기화"""
-        # Gemini API 설정
         genai.configure(api_key=AI_SETTINGS["google_api_key"])
         self.model = genai.GenerativeModel(AI_SETTINGS["model_name"])
 
-    async def generate_text(self, prompt: str) -> GenerateResponse:
+    async def analyze_diary_emotion(
+        self, request: DiaryEmotionRequest
+    ) -> DiaryEmotionResponse:
         """
-        프롬프트를 기반으로 텍스트 생성
+        일기 감정 분석
 
         Args:
-            prompt (str): 텍스트 생성을 위한 프롬프트
+            request: 일기 분석 요청
 
         Returns:
-            GenerateResponse: 생성된 텍스트 응답
-
-        Raises:
-            AIServiceError: AI 서비스 관련 오류
+            DiaryEmotionResponse: 분석 결과 (DB 저장 가능한 형태)
         """
         try:
-            # Gemini API를 호출하여 텍스트 생성
-            response = self.model.generate_content(prompt)
+            prompt = SimpleEmotionPrompts.get_emotion_analysis_prompt(
+                request.diary_content
+            )
 
-            # 응답 검증
+            response = self.model.generate_content(
+                [SimpleEmotionPrompts.SYSTEM_PROMPT, prompt]
+            )
+
             if not response.text:
-                raise AIServiceError("생성된 텍스트가 비어있습니다.")
+                raise AIServiceError("감정 분석 결과가 비어있습니다.")
 
-            return GenerateResponse(response=response.text)
+            analysis_data = await self._parse_ai_response(response.text)
+            main_emotion = self._normalize_emotion(
+                analysis_data.get("main_emotion", "중립")
+            )
+
+            return DiaryEmotionResponse(
+                main_emotion=MainEmotionType(main_emotion),
+                emotion_analysis=json.dumps(analysis_data, ensure_ascii=False),
+                confidence=analysis_data.get("confidence", 0.5),
+            )
 
         except Exception as e:
-            raise AIServiceError(f"텍스트 생성 중 오류가 발생했습니다: {str(e)}")
+            raise AIServiceError(f"감정 분석 중 오류: {str(e)}")
+
+    def _normalize_emotion(self, emotion: str) -> str:
+        """감정 타입 정규화"""
+        emotion_lower = emotion.lower()
+        if any(
+            word in emotion_lower
+            for word in ["긍정", "positive", "happy", "joy", "기쁨", "행복"]
+        ):
+            return "긍정"
+        elif any(
+            word in emotion_lower
+            for word in ["부정", "negative", "sad", "angry", "슬픔", "분노"]
+        ):
+            return "부정"
+        else:
+            return "중립"
+
+    async def _parse_ai_response(self, text: str) -> dict:
+        """AI 응답에서 JSON 파싱"""
+        try:
+            json_match = re.search(r"```json\n(.*?)\n```", text, re.DOTALL)
+            if json_match:
+                json_text = json_match.group(1)
+            else:
+                start = text.find("{")
+                end = text.rfind("}") + 1
+                if start != -1 and end > start:
+                    json_text = text[start:end]
+                else:
+                    return {
+                        "main_emotion": "중립",
+                        "confidence": 0.5,
+                        "reason": "파싱 실패",
+                    }
+
+            return json.loads(json_text)
+
+        except json.JSONDecodeError:
+            return {
+                "main_emotion": "중립",
+                "confidence": 0.5,
+                "reason": "JSON 파싱 실패",
+            }
 
     def health_check(self) -> bool:
-        """
-        AI 서비스 상태 확인
-
-        Returns:
-            bool: 서비스 정상 여부
-        """
+        """AI 서비스 상태 확인"""
         try:
-            # 간단한 테스트 프롬프트로 상태 확인
-            test_response = self.model.generate_content("Hello")
+            test_response = self.model.generate_content("안녕하세요")
             return bool(test_response.text)
         except Exception:
             return False
-
-
-# 싱글톤 인스턴스
-ai_service = AIService()

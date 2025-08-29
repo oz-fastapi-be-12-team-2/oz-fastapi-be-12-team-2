@@ -1,3 +1,5 @@
+import os
+
 TORTOISE_ORM = {
     "connections": {"default": "postgres://diaryapi:diaryapi@db:5432/diaryapi"},
     "apps": {
@@ -13,7 +15,6 @@ TORTOISE_ORM = {
         },
     },
 }
-import os
 
 AI_SETTINGS = {
     "google_api_key": os.getenv("GOOGLE_API_KEY"),

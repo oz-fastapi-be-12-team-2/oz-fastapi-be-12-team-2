@@ -1,9 +1,14 @@
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from tortoise import fields
 from tortoise.models import Model
 
 from app.shared.model import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.tag.model import Tag
+    from app.user.model import User
 
 
 class MainEmotion(StrEnum):
