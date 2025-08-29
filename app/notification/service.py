@@ -17,6 +17,8 @@ from app.user.model import EmotionStats, PeriodType, User
 # .env 읽기
 load_dotenv()
 
+TEST_MODE = False  # 기본값: 실제 발송
+
 
 async def check_weekly_negative_emotions(user_id: int) -> bool:
     """
@@ -83,6 +85,10 @@ async def send_push_notification(user: User, message: str):
     print(f"[PUSH] to {user.nickname}: {message}")
     # Firebase 푸쉬 알림을 위해서는 앱에서 발급받는 토큰 필요 -> 서버만 있는 상태에서는 사용 불가
 
+    # if TEST_MODE:
+    #     print(f"[PUSH] to {user.nickname}: {message}")
+    #     return
+    #
     # # Firebase 초기화
     # if not firebase_admin._apps:
     #     cred = credentials.Certificate({
@@ -125,7 +131,9 @@ async def send_push_notification(user: User, message: str):
 
 # SMS
 async def send_sms(user: User, message: str):
-    print(f"[SMS] to {user.nickname}: {message}")
+    if TEST_MODE:
+        print(f"[SMS] to {user.email}: {message}")
+        return
 
     # # Twilio 사용
     # from twilio.rest import Client
@@ -139,6 +147,10 @@ async def send_sms(user: User, message: str):
 
 # EMAIL
 async def send_email(user: User, message: str):
+    if TEST_MODE:
+        print(f"[EMAIL] to {user.email}: {message}")
+        return
+
     EMAIL = os.getenv("EMAIL_HOST_USER", "")
     PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
     HOST = os.getenv("EMAIL_HOST", "")
