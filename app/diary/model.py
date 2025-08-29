@@ -1,15 +1,21 @@
 import json
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Optional
 
 from tortoise import fields
 from tortoise.models import Model
 
-from app.ai.schema import MainEmotionType
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
     from app.tag.model import Tag  # 실제 Tag 모델이 정의된 경로에 맞춰 수정
     from app.user.model import User  # 실제 User 모델이 정의된 경로에 맞춰 수정
+
+
+class MainEmotionType(StrEnum):
+    POSITIVE = "긍정"
+    NEGATIVE = "부정"
+    NEUTRAL = "중립"
 
 
 class Diary(TimestampMixin, Model):

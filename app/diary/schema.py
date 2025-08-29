@@ -6,7 +6,8 @@ from typing import Annotated, Any, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.ai.schema import DiaryEmotionResponse, MainEmotionType
+from app.ai.schema import DiaryEmotionResponse
+from app.diary.model import MainEmotionType
 
 # ============================================================
 # 1) 공통 유효성 타입(제약 모음)

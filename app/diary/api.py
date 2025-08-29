@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.ai.schema import MainEmotionType
+from app.diary.model import MainEmotionType
 from app.diary.schema import (
     DiaryCreate,
     DiaryListItem,

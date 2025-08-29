@@ -4,8 +4,9 @@ from collections import Counter
 from datetime import date, datetime
 from typing import Any, Dict, Mapping, Optional, Union
 
-from app.ai.schema import DiaryEmotionResponse, MainEmotionType
+from app.ai.schema import DiaryEmotionResponse
 from app.diary import repository
+from app.diary.model import MainEmotionType
 from app.diary.schema import (
     DiaryCreate,
     DiaryImageOut,

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
-from app.diary.model import MainEmotion
+from app.diary.model import MainEmotionType
 from app.notification.api import router as notification_router
 from app.notification.service import send_notifications
 from app.user.model import EmotionStats, NotificationType, PeriodType, User
@@ -73,8 +73,8 @@ async def test_emotionstat(test_user: User) -> AsyncGenerator[EmotionStats, None
     emotionstat = await EmotionStats.create(
         user_id=test_user.id,
         period_type=PeriodType.WEEKLY.value,
-        emotion_type=MainEmotion.NEGATIVE.value,
-        type=MainEmotion.NEGATIVE,
+        emotion_type=MainEmotionType.NEGATIVE.value,
+        type=MainEmotionType.NEGATIVE,
         frequency=5,
     )
     yield emotionstat
