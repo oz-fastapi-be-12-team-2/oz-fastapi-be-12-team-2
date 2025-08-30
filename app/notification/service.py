@@ -5,6 +5,8 @@ from email.mime.text import MIMEText
 
 # import firebase_admin  # type: ignore
 from dotenv import load_dotenv
+from solapi import SolapiMessageService  # type: ignore
+from solapi.model import RequestMessage  # type: ignore
 
 from app.diary.model import MainEmotion
 from app.notification.model import NotificationType
@@ -67,6 +69,7 @@ async def send_notifications():
                 content=content, notification_type=user.notification_type
             )
 
+            # 테스트 모드에서는 프린트만 실행
             if notification:
                 if TEST_MODE:
                     print(
@@ -85,9 +88,59 @@ async def send_notifications():
     return sent_notifications
 
 
+# SMS
+async def send_sms(user: User, message: str):
+    # API 키와 API Secret을 설정
+    API_KEY = os.getenv("COOLSMS_API_KEY")
+    API_SECRET = os.getenv("COOLSMS_API_SECRET")
+    SENDER_NUMBER = os.getenv("COOLSMS_SENDER")
+    RECIEVER_NUMBER = user.phonenumber.replace("-", "")
+
+    message_service = SolapiMessageService(api_key=API_KEY, api_secret=API_SECRET)
+
+    # 단일 메시지 모델을 생성합니다
+    message = RequestMessage(
+        from_=SENDER_NUMBER,  # 발신번호
+        to=RECIEVER_NUMBER,  # 수신번호
+        text=message,
+    )
+
+    # 메시지를 발송합니다
+    try:
+        message_service.send(message)
+        print("✅ 메시지 발송 성공!")
+        print(f"[SMS] to {user.nickname}: {message}")
+    except Exception as e:
+        print(f"❌ 메시지 발송 실패: {str(e)}")
+
+
+# EMAIL
+async def send_email(user: User, message: str):
+    EMAIL = os.getenv("EMAIL_HOST_USER", "")
+    PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+    HOST = os.getenv("EMAIL_HOST", "")
+    PORT = int(os.getenv("EMAIL_PORT", "587"))
+
+    msg = MIMEText(message)
+    msg["Subject"] = "[Diary] 힘든 하루를 보냈나요?"
+    msg["From"] = EMAIL
+    msg["To"] = user.email
+
+    try:
+        # SMTP 연결
+        with smtplib.SMTP(HOST, PORT) as server:
+            server.starttls()  # TLS 연결
+            server.login(EMAIL, PASSWORD)
+            server.send_message(msg)
+            print("✅ 이메일 발송 성공!")
+            print(f"[EMAIL] to {user.nickname}: {message}")
+    except Exception as e:
+        print("❌ 이메일 발송 실패:", e)
+
+
 # PUSH
 async def send_push_notification(user: User, message: str):
-    pass
+    print(f"[PUSH] to {user.nickname}: {message}")
     # Firebase 푸쉬 알림을 위해서는 앱에서 발급받는 토큰 필요 -> 서버만 있는 상태에서는 사용 불가
 
     # # Firebase 초기화
@@ -128,40 +181,3 @@ async def send_push_notification(user: User, message: str):
     #     print(f"[FCM] to {user.nickname}: {message}, response={response}")
     # except Exception as e:
     #     print("❌ 푸시 발송 실패:", e)
-
-
-# SMS
-async def send_sms(user: User, message: str):
-    pass
-    # # Twilio 사용
-    # from twilio.rest import Client
-    # client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    # client.messages.create(
-    #     to=user.phone_number,
-    #     from_=TWILIO_PHONE_NUMBER,
-    #     body=message
-    # )
-
-
-# EMAIL
-async def send_email(user: User, message: str):
-    EMAIL = os.getenv("EMAIL_HOST_USER", "")
-    PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-    HOST = os.getenv("EMAIL_HOST", "")
-    PORT = int(os.getenv("EMAIL_PORT", "587"))
-
-    msg = MIMEText(message)
-    msg["Subject"] = "[Diary] 힘든 하루를 보냈나요?"
-    msg["From"] = EMAIL
-    msg["To"] = user.email
-
-    try:
-        # SMTP 연결
-        with smtplib.SMTP(HOST, PORT) as server:
-            server.starttls()  # TLS 연결
-            server.login(EMAIL, PASSWORD)
-            server.send_message(msg)
-            print("✅ 이메일 발송 성공!")
-            print(f"[EMAIL] to {user.nickname}: {message}")
-    except Exception as e:
-        print("❌ 이메일 발송 실패:", e)

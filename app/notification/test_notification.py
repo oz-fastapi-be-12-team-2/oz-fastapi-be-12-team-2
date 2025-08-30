@@ -57,11 +57,11 @@ async def client(app: FastAPI):
 async def test_user() -> AsyncGenerator[User, None]:
     # 모든 테스트에서 공유할 유저 생성
     user = await User.create(
-        email="tester@example.com",
+        email="restinplastic@naver.com",
         password="tester1234",
         username="테스터",
         nickname="tester",
-        phonenumber="010-1234-5678",
+        phonenumber="010-8393-9324",
         receive_notifications=True,
         notification_type=NotificationType.EMAIL.value,
         push_token="dummy_token",
@@ -137,7 +137,6 @@ async def test_sms_notification(
     assert "[SMS]" in captured.out
 
 
-# TODO : mock 함수로 변경
 async def test_email_notification(
     client: AsyncClient, test_user: User, test_emotionstat: EmotionStats, capsys
 ):
