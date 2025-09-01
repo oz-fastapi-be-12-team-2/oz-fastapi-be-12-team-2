@@ -1,3 +1,4 @@
+from tortoise.exceptions import DoesNotExist
 from tortoise.transactions import in_transaction
 
 from app.notification.model import Notification, NotificationType
@@ -14,13 +15,24 @@ async def create_notification(
     notification = await Notification.create(
         content=content, notification_type=notification_type
     )
-    await notification.user.add(*users)
+    await notification.users.add(*users)
     return notification
 
 
-async def get_notifications_for_user(user_id: int) -> list[Notification]:
-    user = await User.get(id=user_id)
-    return await user.notifications.all()
+async def get_all_notifications() -> list[Notification]:
+    """
+    알림(Notification) 테이블의 모든 정의 데이터 조회
+    """
+    return await Notification.all().order_by("weekday", "notification_type")
+
+
+# 타입 힌팅 수정(list[Notification] -> Notification | None)
+async def get_notifications_for_user(user_id: int) -> Notification | None:
+    try:
+        user = await User.get(id=user_id).prefetch_related("notifications")
+    except DoesNotExist:
+        return None
+    return await user.notifications.all().first()
 
 
 async def replace_notifications(

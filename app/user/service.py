@@ -1,10 +1,11 @@
+from datetime import date
 from typing import Optional, Sequence, Tuple
 
 from fastapi import HTTPException
 from tortoise.transactions import in_transaction
 
-from app.notification import repository
-from app.notification.model import NotificationType
+from app.notification.model import Notification, NotificationType
+from app.notification.seed import WEEKDAY_MESSAGES
 from app.user.auth import create_access_token, create_refresh_token
 from app.user.model import User
 from app.user.schema import UserCreate, UserLogin, UserResponse, UserUpdate
@@ -55,29 +56,56 @@ class UserService:
                 username=payload.username,
                 phonenumber=payload.phonenumber,
                 using_db=conn,
+                receive_notifications=payload.receive_notifications,  # 추가
             )
 
-            # ← 여기 수정
-            raw = getattr(
-                payload, "notification_type", None
-            )  # str | list[str] | None 가정
-            names = _normalize_names(raw)
-            if names:
-                # 허용값 집합 (Enum 쓰면 아래처럼)
+            notification_type_value: Optional[str] = None  # 임시 변수
+
+            # 알림 수신 동의한 경우 알림 생성
+            if payload.receive_notifications and payload.notification_type:
+                # Enum값 인증 if문 안에서 수행
                 allowed = {e.value for e in NotificationType}
-                invalid = [n for n in names if n not in allowed]
-                if invalid:
+                if payload.notification_type not in allowed:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"지원하지 않는 notification_type: {invalid}",
+                        detail=f"지원하지 않는 notification_type: {payload.notification_type}",
                     )
 
-                # 같은 트랜잭션으로 관계 갱신
-                await repository.replace_notifications(user, names, using_db=conn)
+                # 요일 메세지
+                today = date.today()
+                weekday = today.weekday()
+                message = WEEKDAY_MESSAGES[weekday]
 
-        # 응답 구성 (없으면 빈 문자열/혹은 Optional[str]로 스키마 조정)
-        notif = await user.notifications.all().first()
-        notification_type: str = notif.notification_type if notif else ""
+                # Notification 생성
+                notif = await Notification.create(
+                    user=user,
+                    content=message,
+                    notification_type=payload.notification_type,
+                    using_db=conn,
+                )
+                notification_type_value = notif.notification_type
+
+            # # ← 여기 수정
+            # raw = getattr(
+            #     payload, "notification_type", None
+            # )  # str | list[str] | None 가정
+            # names = _normalize_names(raw)
+            # if names:
+            #     # 허용값 집합 (Enum 쓰면 아래처럼)
+            #     allowed = {e.value for e in NotificationType}
+            #     invalid = [n for n in names if n not in allowed]
+            #     if invalid:
+            #         raise HTTPException(
+            #             status_code=400,
+            #             detail=f"지원하지 않는 notification_type: {invalid}",
+            #         )
+
+            # # 같은 트랜잭션으로 관계 갱신
+            # await repository.replace_notifications(user, names, using_db=conn)
+
+        # # 응답 구성 (없으면 빈 문자열/혹은 Optional[str]로 스키마 조정)
+        # notif = await user.notifications.all().first()
+        # notification_type: str = notif.notification_type if notif else ""
 
         return UserResponse(
             id=user.id,
@@ -88,7 +116,7 @@ class UserService:
             created_at=user.created_at,
             updated_at=user.updated_at,
             receive_notifications=user.receive_notifications,
-            notification_type=notification_type,
+            notification_type=notification_type_value,  # 수정
         )
 
     # ─────────────────────────────────────────────────────────

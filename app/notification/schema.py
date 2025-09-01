@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from pydantic import BaseModel, Field
 
 from app.notification.model import NotificationType
@@ -12,10 +10,10 @@ class NotificationCreateRequest(BaseModel):
 
 class NotificationResponse(BaseModel):
     id: int
+    weekday: int  # 추가
+    notification_type: NotificationType
     content: str
-    type: NotificationType
-    created_at: datetime
-    updated_at: datetime
+    # 생성일, 수정일 제거
 
     class Config:
         orm_mode = True  # ORM 객체를 그대로 Pydantic 모델로 변환 가능
