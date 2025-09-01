@@ -1,12 +1,12 @@
 import json
 from datetime import date
-from typing import Any, Iterable, Optional
+from typing import Any, Optional, Sequence
 
 from tortoise.transactions import in_transaction
 
 from app.ai.schema import DiaryEmotionResponse
-from app.diary.model import Diary, Image
-from app.diary.schema import DiaryCreate, TagIn
+from app.diary.model import Diary, DiaryTag, Image
+from app.diary.schema import DiaryCreate
 from app.tag.model import Tag
 
 
@@ -24,29 +24,14 @@ def _dumps_ea(ea: Optional[DiaryEmotionResponse | dict[str, Any]]) -> Optional[s
 # -----------------get_or_create------------------------------------------------------------
 # CREATE
 # -----------------------------------------------------------------------------
-async def create(payload: DiaryCreate) -> Diary:
+async def create(payload: DiaryCreate, using_db=None) -> Diary:
     diary = await Diary.create(
         title=payload.title,
         content=payload.content,
-        main_emotion=payload.main_emotion,
-        emotion_analysis=_dumps_ea(payload.emotion_analysis),
+        emotion_analysis_report=_dumps_ea(payload.emotion_analysis_report),
         user_id=payload.user_id,
+        using_db=using_db,
     )
-
-    # 태그 처리: TagIn 객체 리스트
-    if payload.tags:
-        tag_objs = []
-        for t in payload.tags:
-            tag, _ = await Tag.get_or_create(tag_name=t.name)
-            tag_objs.append(tag)
-        if tag_objs:
-            await diary.tags.add(*tag_objs)
-
-    # 이미지 처리
-    if payload.images:
-        for i, url in enumerate(payload.images, start=1):
-            await Image.create(diary=diary, order=i, image=url)
-
     await diary.fetch_related("images", "tags", "user")
     return diary
 
@@ -115,33 +100,83 @@ async def list_by_filters(
 # -----------------------------------------------------------------------------
 # UPDATE
 # -----------------------------------------------------------------------------
+SCALAR_UPDATABLE = {"title", "content", "main_emotion"}  # 필요한 것만 허용
+
+
 async def update_partially(diary: Diary, patch: dict[str, Any]) -> Diary:
-    """
-    단순 필드 부분 업데이트 (트랜잭션 내부에서 호출 가능)
-    """
+    clean: dict[str, Any] = {}
     for k, v in patch.items():
+        if k in {"id", "created_at", "updated_at", "user_id"}:
+            continue
+        if k in {"tags", "images", "image_urls"}:
+            continue  # 관계/별도 처리
+        if k not in SCALAR_UPDATABLE:
+            continue
+        # None 무시하고 싶으면: if v is None: continue
+        clean[k] = v
+
+    for k, v in clean.items():
         setattr(diary, k, v)
     await diary.save()
     return diary
 
 
-async def replace_tags(diary: Diary, tags: list[TagIn]) -> None:
-    await diary.tags.clear()
-    for t in tags:
-        tag, _ = await Tag.get_or_create(tag_name=t.name)
-        await diary.tags.add(tag)
+async def replace_tags(diary: Diary, names: Sequence[str], using_db=None) -> None:
+    """
+    태그 전체 교체.
+    - 입력 문자열 배열을 정규화
+    - 존재하지 않으면 생성(get_or_create)
+    - 기존 연결 clear 후, 새 태그 add
+    """
+    # if not names:
+    #     await diary.tags.clear()
+    #     return
+
+    # async with in_transaction():
+    #     tag_objs: list[Tag] = []
+    #     for name in names:
+    #         tag, _ = await Tag.get_or_create(name=name)
+    #         tag_objs.append(tag)
+    #     await diary.tags.clear()
+    #     await diary.tags.add(*tag_objs)
+
+    cleaned = [n.strip() for n in (names or []) if isinstance(n, str) and n.strip()]
+    await DiaryTag.filter(diary_id=diary.id).using_db(using_db).delete()
+    if not cleaned:
+        return
+    tags: list[Tag] = []
+    for nm in cleaned:
+        t, _ = await Tag.get_or_create(name=nm, using_db=using_db)
+        tags.append(t)
+    await DiaryTag.bulk_create(
+        [DiaryTag(diary_id=diary.id, tag_id=t.id) for t in tags],
+        using_db=using_db,
+    )
 
 
-async def replace_images(diary: Diary, urls: Iterable[str]) -> None:
+async def replace_images(diary: Diary, urls: Sequence[str], using_db=None) -> None:
     """
-    이미지 전체 교체: 기존 삭제 후 (order=1..n) 재생성
+    이미지 전체 교체.
+    - 공백 제거 + 중복 제거(원래 순서 유지)
+    - 기존 이미지 삭제
+    - 새 URL을 order=1..N으로 bulk insert
     """
+    norm, seen = [], set()
+    for u in urls:
+        s = (u or "").strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        norm.append(s)
+
     async with in_transaction():
-        await Image.filter(diary=diary).delete()
-        for i, url in enumerate(urls, start=1):
-            await Image.create(
-                diary=diary, order=i, image=url
-            )  # 필드명이 url이면 image→url로
+        await Image.filter(diary_id=diary.id).delete()
+        if norm:
+            print("replace_images.norm=", norm)
+            rows = [
+                Image(diary_id=diary.id, url=u, order=i + 1) for i, u in enumerate(norm)
+            ]
+            await Image.bulk_create(rows)
 
 
 # -----------------------------------------------------------------------------
