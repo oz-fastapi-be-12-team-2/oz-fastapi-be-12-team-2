@@ -17,7 +17,6 @@ from tortoise import Tortoise
 
 from app.ai.schema import DiaryEmotionResponse, EmotionAnalysis
 from app.diary.api import router as diary_router
-from app.diary.service import _resolve_ai
 from app.user.model import User
 
 # pytest-asyncio 만 사용
@@ -104,7 +103,7 @@ async def client(app: FastAPI):
     - httpx AsyncClient 구성
     """
     # 테스트에서만 AI 의존성 오버라이드
-    app.dependency_overrides[_resolve_ai] = lambda: _StubAI()
+    # app.dependency_overrides[_resolve_ai] = lambda: _StubAI()
 
     # ORM 초기화(테스트 모델 등록)
     #   - Tag 모델이 app.diary.model 안으로 통합됐다면 "app.tag.model" 항목을 제거하세요.
