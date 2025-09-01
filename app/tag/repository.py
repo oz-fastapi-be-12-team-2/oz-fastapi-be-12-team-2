@@ -1,86 +1,175 @@
-from typing import List, Optional
+from __future__ import annotations
 
+from typing import Optional, Sequence, Tuple
+
+from tortoise.queryset import QuerySet
+
+from app.diary.model import Diary
 from app.tag.model import Tag
+from app.tag.schema import TagCreate
 
 
-class TagRepository:
-    @staticmethod
-    async def get_or_create_tag(tag_name: str) -> Tag:
-        """태그 이름으로 조회하거나 생성"""
-        tag, created = await Tag.get_or_create(tag_name=tag_name.strip())
-        return tag
+# -----------------------------------------------------------------------------
+# CREATE
+# -----------------------------------------------------------------------------
+async def create(payload: TagCreate, using_db=None) -> Tag:
+    """
+    태그 생성
+    """
+    tag = await Tag.create(
+        name=payload.name.strip(),
+        using_db=using_db,
+    )
+    return tag
 
-    @staticmethod
-    async def get_by_name(tag_name: str) -> Optional[Tag]:
-        """태그 이름으로 조회"""
-        return await Tag.get_or_none(tag_name=tag_name.strip())
 
-    @staticmethod
-    async def get_by_id(tag_id: int) -> Optional[Tag]:
-        """태그 ID로 조회"""
-        return await Tag.get_or_none(tag_id=tag_id)
+async def get_or_create_by_name(name: str, using_db=None) -> Tuple[Tag, bool]:
+    """
+    태그명으로 조회하거나 생성
+    - Returns: (Tag 객체, 생성 여부)
+    """
+    return await Tag.get_or_create(
+        name=name.strip(),
+        using_db=using_db,
+    )
 
-    @staticmethod
-    async def list_all_tags(limit: int = 100) -> List[Tag]:
-        """모든 태그 조회 (사용 빈도 순)"""
-        return await Tag.all().limit(limit)
 
-    @staticmethod
-    async def search_tags(query: str, limit: int = 20) -> List[Tag]:
-        """PostgreSQL ILIKE를 사용한 대소문자 무시 태그 검색"""
-        return await Tag.filter(tag_name__ilike=f"%{query.strip()}%").limit(limit)
+# -----------------------------------------------------------------------------
+# READ
+# -----------------------------------------------------------------------------
+async def get_by_id(tag_id: int, *, prefetch_diaries: bool = False) -> Optional[Tag]:
+    """
+    ID로 태그 단건 조회
+    - prefetch_diaries=True면 diary_count 계산 가능
+    """
+    qs = Tag.filter(id=tag_id)
+    if prefetch_diaries:
+        qs = qs.prefetch_related("diaries")
+    return await qs.first()
 
-    @staticmethod
-    async def get_popular_tags(limit: int = 10) -> List[dict]:
-        """인기 태그 조회 (다이어리 수 기준) - ORM 버전"""
-        from tortoise.functions import Count
 
-        # Tortoise ORM으로 집계 쿼리
-        tags = (
-            await Tag.annotate(diary_count=Count("diaries"))
-            .order_by("-diary_count")
-            .limit(limit)
-        )
+async def get_by_name(name: str) -> Optional[Tag]:
+    """
+    이름으로 태그 단건 조회
+    """
+    return await Tag.get_or_none(name=name.strip())
 
-        return [
-            {
-                "id": tag.id,
-                "name": tag.name,
-                "diary_count": tag.diary_count,
-            }
-            for tag in tags
-        ]
 
-    @staticmethod
-    async def get_user_tags(user_id: int, limit: int = 50) -> List[dict]:
-        """특정 사용자가 사용한 태그들 - ORM 버전"""
-        from tortoise.functions import Count
+async def list_tags(
+        *,
+        name: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+) -> Tuple[Sequence[Tag], int]:
+    """
+    태그 목록 조회 (검색 + 페이징)
+    """
+    qs: QuerySet[Tag] = Tag.all().prefetch_related("diaries")
 
-        # 사용자의 일기들과 연결된 태그들을 집계
-        tags = (
-            await Tag.filter(diaries__user_id=user_id)
-            .annotate(usage_count=Count("diaries", distinct=True))
-            .order_by("-usage_count")
-            .limit(limit)
-        )
+    # 이름으로 검색 (부분 일치)
+    if name is not None:
+        qs = qs.filter(name__icontains=name.strip())
 
-        return [
-            {
-                "tag_id": tag.id,
-                "tag_name": tag.name,
-                "usage_count": tag.usage_count,
-            }
-            for tag in tags
-        ]
+    # 총 개수
+    total = await qs.count()
 
-    @staticmethod
-    async def delete_unused_tags() -> int:
-        """사용되지 않는 태그 삭제 - ORM 버전"""
-        # 일기와 연결되지 않은 태그들 찾기
-        unused_tags = await Tag.filter(diaries__isnull=True)
-        count = len(unused_tags)
+    # 페이징 + 정렬 (이름순)
+    items = await qs.order_by("name").offset((page - 1) * page_size).limit(page_size)
 
-        # 삭제 수행
-        await Tag.filter(diaries__isnull=True).delete()
+    return items, total
 
-        return count
+
+async def get_diaries_by_tag_id(
+        tag_id: int,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+) -> Tuple[Sequence[Diary], int]:
+    """
+    특정 태그 ID가 붙은 일기 목록 조회
+    """
+    # 태그를 통해 일기들을 조회
+    qs = (
+        Diary.filter(tags__id=tag_id)
+        .prefetch_related("tags", "images", "user")
+        .distinct()
+    )
+
+    # 총 개수
+    total = await qs.count()
+
+    # 페이징 + 정렬 (최신순)
+    items = await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+
+    return items, total
+
+
+async def get_diaries_by_tag_name(
+        tag_name: str,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+) -> Tuple[Sequence[Diary], int]:
+    """
+    특정 태그명이 붙은 일기 목록 조회
+    """
+    qs = (
+        Diary.filter(tags__name=tag_name.strip())
+        .prefetch_related("tags", "images", "user")
+        .distinct()
+    )
+
+    # 총 개수
+    total = await qs.count()
+
+    # 페이징 + 정렬 (최신순)
+    items = await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+
+    return items, total
+
+
+# -----------------------------------------------------------------------------
+# UPDATE
+# -----------------------------------------------------------------------------
+# async def update_tag(tag: Tag, name: str) -> Tag:
+#     """
+#     태그 이름 수정
+#     """
+#     tag.name = name.strip()
+#     await tag.save()
+#     return tag
+#
+#
+# # -----------------------------------------------------------------------------
+# # DELETE
+# # -----------------------------------------------------------------------------
+# async def delete_tag(tag: Tag) -> None:
+#     """
+#     태그 삭제
+#     - 일기와의 관계는 ManyToMany이므로 관계만 해제되고 일기는 유지됨
+#     """
+#     await tag.delete()
+
+
+# -----------------------------------------------------------------------------
+# UTILITY
+# -----------------------------------------------------------------------------
+# async def count_diaries_by_tag_id(tag_id: int) -> int:
+#     """
+#     특정 태그가 사용된 일기 개수 조회
+#     """
+#     return await Diary.filter(tags__id=tag_id).count()
+
+
+async def get_popular_tags(limit: int = 10) -> Sequence[Tag]:
+    """
+    인기 태그 조회 (일기 수 기준 상위 N개)
+    """
+    # Raw SQL을 사용하거나 Python에서 계산하는 방법이 필요
+    # 여기서는 간단히 모든 태그를 가져와서 Python에서 정렬
+    tags = await Tag.all().prefetch_related("diaries")
+
+    # 일기 수로 정렬
+    sorted_tags = sorted(tags, key=lambda t: len(getattr(t, 'diaries', [])), reverse=True)
+
+    return sorted_tags[:limit]
