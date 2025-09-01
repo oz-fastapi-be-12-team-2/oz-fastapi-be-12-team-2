@@ -9,6 +9,7 @@ dependencies = [
     "anyio>=4.10.0",
     "asyncpg==0.30.0",
     "bcrypt>=4.3.0",
+    "cloudinary>=1.44.1",
     "coverage==7.10.5",
     "fastapi==0.116.1",
     "google-generativeai>=0.8.5",
@@ -20,6 +21,8 @@ dependencies = [
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.14.1",
     "python-dotenv==1.1.1",
+    "python-multipart>=0.0.20",
+    "solapi>=5.0.2",
     "tortoise-orm==0.25.1",
     "types-passlib>=1.7.7.20250602",
     "uvicorn==0.35.0",
@@ -65,3 +68,7 @@ max-line-length = 120
 tortoise_orm = "core.config.TORTOISE_ORM"
 location = "./migrations"
 src_folder = "./."
+
+# coverage에 테스트 코드 제외
+[tool.coverage.run]
+omit = ["*/test_*.py"]

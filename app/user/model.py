@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from tortoise import Model, fields
 
+from app.diary.model import MainEmotionType
 from app.notification.model import NotificationType
 from app.shared.model import TimestampMixin
 
@@ -22,12 +23,6 @@ class UserRole(StrEnum):
     USER = "user"
     STAFF = "staff"
     SUPERUSER = "superuser"
-
-
-class EmotionType(StrEnum):
-    JOY = "기쁨"
-    ANGER = "분노"
-    SADNESS = "우울"
 
 
 # User 필드
@@ -62,10 +57,12 @@ class EmotionStats(Model):
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="emotion_stats"
     )  # FK
-    period_type = fields.CharEnumField(enum_type=PeriodType)
-    emotion_type = fields.CharEnumField(enum_type=EmotionType)
-    frequency = fields.IntField()
-    created_at = fields.DatetimeField(auto_now_add=True)
+
+    period_type = fields.CharEnumField(PeriodType)  # ENUM
+    emotion_type = fields.CharEnumField(MainEmotionType)  # ENUM
+    frequency = fields.IntField()  # 횟수
+    created_at = fields.DatetimeField(auto_now_add=True)  # 생성시 자동 입력
+
 
     class Meta:
         table = "emotion_stats"

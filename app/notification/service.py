@@ -4,14 +4,18 @@ from datetime import date, datetime, time
 from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
+from solapi import SolapiMessageService  # type: ignore
+from solapi.model import RequestMessage  # type: ignore
 
-from app.diary.model import MainEmotion
+from app.diary.model import MainEmotionType
 from app.notification.model import NotificationType
 from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
 
-# .env 읽기
+
 load_dotenv()
+
+TEST_MODE = False  # 기본값: 실제 발송
 
 
 async def check_weekly_negative_emotions(user_id: int) -> bool:
@@ -28,7 +32,7 @@ async def check_weekly_negative_emotions(user_id: int) -> bool:
         period_type=PeriodType.WEEKLY.value,
         created_at__gte=start,
         created_at__lt=end,
-        emotion_type=MainEmotion.NEGATIVE.value,
+        emotion_type=MainEmotionType.NEGATIVE.value,
     )
     return stats is not None and stats.frequency >= 5
 
@@ -61,48 +65,49 @@ async def send_notifications():
                 content=content, notification_type=user.notification_type
             )
 
+            # 테스트 모드에서는 프린트만 실행
             if notification:
-                if user.notification_type == NotificationType.PUSH:
-                    await send_push_notification(user, message)
-                elif user.notification_type == NotificationType.SMS:
-                    await send_sms(user, message)
-                elif user.notification_type == NotificationType.EMAIL:
-                    await send_email(user, message)
+                if TEST_MODE:
+                    print(
+                        f"[{user.notification_type.value}] to {user.nickname}: {message}"
+                    )
+                else:
+                    if user.notification_type == NotificationType.PUSH:
+                        await send_push_notification(user, message)
+                    elif user.notification_type == NotificationType.SMS:
+                        await send_sms(user, message)
+                    elif user.notification_type == NotificationType.EMAIL:
+                        await send_email(user, message)
 
                 sent_notifications.append(notification)
 
     return sent_notifications
 
 
-# PUSH
-async def send_push_notification(user: User, message: str):
-    print(f"[PUSH] to {user.nickname}: {message}")
-
-    # # FCM(Firebase Cloud Messaging) 사용
-    # if not user.push_token:
-    #     return
-    # payload = {
-    #     "to": user.push_token,
-    #     "notification": {"title": "오늘의 감정 알림", "body": message},
-    # }
-    # # aiohttp 또는 httpx로 FCM API 호출
-    # async with httpx.AsyncClient() as client:
-    #     await client.post("https://fcm.googleapis.com/fcm/send", json=payload,
-    #                       headers={"Authorization": f"key={FCM_SERVER_KEY}"})
-
-
 # SMS
 async def send_sms(user: User, message: str):
-    print(f"[SMS] to {user.nickname}: {message}")
+    # API 키와 API Secret을 설정
+    API_KEY = os.getenv("COOLSMS_API_KEY")
+    API_SECRET = os.getenv("COOLSMS_API_SECRET")
+    SENDER_NUMBER = os.getenv("COOLSMS_SENDER")
+    RECIEVER_NUMBER = user.phonenumber.replace("-", "")
 
-    # # Twilio 사용
-    # from twilio.rest import Client
-    # client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    # client.messages.create(
-    #     to=user.phone_number,
-    #     from_=TWILIO_PHONE_NUMBER,
-    #     body=message
-    # )
+    message_service = SolapiMessageService(api_key=API_KEY, api_secret=API_SECRET)
+
+    # 단일 메시지 모델을 생성합니다
+    message = RequestMessage(
+        from_=SENDER_NUMBER,  # 발신번호
+        to=RECIEVER_NUMBER,  # 수신번호
+        text=message,
+    )
+
+    # 메시지를 발송합니다
+    try:
+        message_service.send(message)
+        print("✅ 메시지 발송 성공!")
+        print(f"[SMS] to {user.nickname}: {message}")
+    except Exception as e:
+        print(f"❌ 메시지 발송 실패: {str(e)}")
 
 
 # EMAIL
@@ -128,21 +133,47 @@ async def send_email(user: User, message: str):
     except Exception as e:
         print("❌ 이메일 발송 실패:", e)
 
-    # # FastAPI BackgroundTasks + aiosmtplib
-    # from email.message import EmailMessage
-    # import aiosmtplib
+
+# PUSH
+async def send_push_notification(user: User, message: str):
+    print(f"[PUSH] to {user.nickname}: {message}")
+    # Firebase 푸쉬 알림을 위해서는 앱에서 발급받는 토큰 필요 -> 서버만 있는 상태에서는 사용 불가
+
+    # # Firebase 초기화
+    # if not firebase_admin._apps:
+    #     cred = credentials.Certificate({
+    #         "type": "service_account",
+    #         "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+    #         "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+    #         "private_key": (os.getenv("FIREBASE_PRIVATE_KEY") or "").replace("\\n", "\n"),
+    #         "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+    #         "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+    #         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    #         "token_uri": "https://oauth2.googleapis.com/token",
+    #         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    #         "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
+    #     })
+    #     firebase_admin.initialize_app(cred)
     #
-    # email = EmailMessage()
-    # email["From"] = SMTP_FROM
-    # email["To"] = user.email
-    # email["Subject"] = "오늘의 감정 알림"
-    # email.set_content(message)
+    # """
+    # :param user: FCM 토큰을 가진 사용자 객체 (user.fcm_token)
+    # :param message: 알림 내용
+    # """
+    # if not getattr(user, "fcm_token", None):
+    #     print("❌ 푸시 발송 실패: FCM 토큰 없음")
+    #     return
     #
-    # await aiosmtplib.send(
-    #     email,
-    #     hostname=SMTP_HOST,
-    #     port=SMTP_PORT,
-    #     username=SMTP_USER,
-    #     password=SMTP_PASSWORD,
-    #     start_tls=True,
+    # msg = messaging.Message(
+    #     notification=messaging.Notification(
+    #         title="[Diary] 힘든 하루를 보냈나요?",
+    #         body=message
+    #     ),
+    #     token=user.fcm_token,
     # )
+    #
+    # try:
+    #     response = messaging.send(msg)
+    #     print("✅ 푸시 발송 성공!")
+    #     print(f"[FCM] to {user.nickname}: {message}, response={response}")
+    # except Exception as e:
+    #     print("❌ 푸시 발송 실패:", e)
