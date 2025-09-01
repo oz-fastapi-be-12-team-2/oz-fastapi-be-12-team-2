@@ -69,9 +69,7 @@ async def send_notifications():
             # 테스트 모드에서는 프린트만 실행
             if notification:
                 if TEST_MODE:
-                    print(
-                        f"[{notification_type.value}] to {user.nickname}: {message}"
-                    )
+                    print(f"[{notification_type.value}] to {user.nickname}: {message}")
                 else:
                     if notification_type == NotificationType.PUSH:
                         await send_push_notification(user, message)
