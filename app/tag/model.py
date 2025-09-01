@@ -22,11 +22,6 @@ class Tag(Model):
 
     # 다대다 관계: 하나의 태그는 여러 일기에 사용될 수 있고,
     # 하나의 일기는 여러 태그를 가질 수 있음
-    diaries: fields.ManyToManyRelation["Diary"] = fields.ManyToManyField(
-        "models.Diary",
-        related_name="tags",
-        through="diary_tag",
-    )
 
     class Meta:
         table = "tags"
