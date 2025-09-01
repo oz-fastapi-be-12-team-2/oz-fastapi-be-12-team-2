@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 import jwt
 from fastapi import HTTPException, Request, Response
 
+from app.user.model import User
+
 SECRET_KEY = "your_secret_key"
 ALGORITHM = "HS256"  # JWT 토큰 암호화 알고리즘
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -42,13 +44,19 @@ def set_tokens_in_cookies(response: Response, access_token: str, refresh_token: 
     )
     return response
 
-
-def get_current_user(request: Request):
+#유저 반환 개선(확인필요)
+async def get_current_user(request: Request):
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user = await User.filter(id=int(user_id)).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
