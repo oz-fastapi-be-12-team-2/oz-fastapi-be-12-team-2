@@ -15,7 +15,7 @@ class UserCreate(BaseModel):
     phonenumber: Annotated[
         str, Field(pattern=r"^010-\d{4}-\d{4}$")
     ]  # 010-0000-0000 형식
-    notification_types = Optional[List[NotificationType]]
+    notification_types: Optional[List[NotificationType]]
 
 
 # 로그인 요청 시 스키마

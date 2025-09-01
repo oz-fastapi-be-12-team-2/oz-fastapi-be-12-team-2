@@ -24,12 +24,7 @@ class Notification(TimestampMixin, Model):
     )
 
     # 타입 힌트는 문자열로 ("User") → 타입체커는 TYPE_CHECKING import 를 보고 인식
-    user: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
-        "models.User",
-        related_name="notifications",
-        on_delete=fields.CASCADE,
-        through="notification_users",
-    )
+    user: fields.ManyToManyRelation["User"]
 
     def __str__(self):
         return f"Notification(id={self.id}, content={self.content})"

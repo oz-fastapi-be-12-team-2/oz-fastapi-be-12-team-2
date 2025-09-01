@@ -7,7 +7,7 @@ from tortoise.exceptions import DBConnectionError
 
 from app.ai.api import router as ai_router
 from app.tag.api import router as tag_router
-from app.user.api import router as user_router  # 유저 라우터 추가
+from app.user.api import router as user_router
 from core.config import TORTOISE_ORM
 
 DATABASE_URL = "postgresql+asyncpg://diaryapi:diaryapi@localhost:5432/diaryapi"

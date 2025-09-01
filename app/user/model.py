@@ -7,9 +7,7 @@ from app.diary.model import MainEmotionType
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
-    from app.notification.model import (  # 실제 Notification 모델이 정의된 경로에 맞춰 수정
-        Notification,
-    )
+    from app.notification.model import Notification
 
 
 class PeriodType(StrEnum):
@@ -87,7 +85,7 @@ class UserNotification(Model):
         "models.User",
         on_delete=fields.CASCADE,
     )
-    notification: fields.ForeignKeyRelation[Notification] = fields.ForeignKeyField(
+    notification: fields.ForeignKeyRelation["Notification"] = fields.ForeignKeyField(
         "models.Notification",
         on_delete=fields.CASCADE,
     )

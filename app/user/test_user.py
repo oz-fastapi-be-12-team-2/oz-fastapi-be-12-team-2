@@ -16,6 +16,7 @@ async def test_signup_and_login(async_client: AsyncClient):
             "nickname": "tester",
             "username": "테스트유저",
             "phonenumber": "010-1234-5678",
+            "notification_types": ["SMS"],
         },
     )
     assert resp.status_code == 200
