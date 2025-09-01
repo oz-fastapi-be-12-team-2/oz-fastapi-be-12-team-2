@@ -60,22 +60,24 @@ async def send_notifications():
     for user in users:
         if await check_weekly_negative_emotions(user.id):
             content = message
+            notification_type = user.notifications.__getattribute__("notification_type")
             notification = await create_notification(
-                content=content, notification_type=user.notification_type
+                content=content,
+                notification_type=notification_type,
             )
 
             # 테스트 모드에서는 프린트만 실행
             if notification:
                 if TEST_MODE:
                     print(
-                        f"[{user.notification_type.value}] to {user.nickname}: {message}"
+                        f"[{notification_type.value}] to {user.nickname}: {message}"
                     )
                 else:
-                    if user.notification_type == NotificationType.PUSH:
+                    if notification_type == NotificationType.PUSH:
                         await send_push_notification(user, message)
-                    elif user.notification_type == NotificationType.SMS:
+                    elif notification_type == NotificationType.SMS:
                         await send_sms(user, message)
-                    elif user.notification_type == NotificationType.EMAIL:
+                    elif notification_type == NotificationType.EMAIL:
                         await send_email(user, message)
 
                 sent_notifications.append(notification)

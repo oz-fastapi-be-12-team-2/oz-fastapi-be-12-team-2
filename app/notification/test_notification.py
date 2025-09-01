@@ -9,8 +9,9 @@ from tortoise import Tortoise
 from app.diary.model import MainEmotionType
 from app.notification import service
 from app.notification.api import router as notification_router
+from app.notification.model import NotificationType
 from app.notification.service import send_notifications
-from app.user.model import EmotionStats, NotificationType, PeriodType, User
+from app.user.model import EmotionStats, PeriodType, User
 
 pytestmark = pytest.mark.asyncio
 service.TEST_MODE = True
@@ -88,7 +89,9 @@ async def test_send_notifications(
     notifications = await send_notifications()
     assert notifications
     assert notifications[0].content is not None
-    assert notifications[0].type == test_user.notification_type
+    assert notifications[0].type == test_user.notifications.__getattribute__(
+        "notification_type"
+    )
 
 
 async def test_create_notification_endpoint(client: AsyncClient):
