@@ -19,6 +19,7 @@ from app.user.model import EmotionStats, PeriodType, User, UserNotification
 pytestmark = pytest.mark.asyncio
 service.TEST_MODE = True
 
+# TODO : test coverage 올리기 -- 현재 60%
 
 @pytest_asyncio.fixture
 async def app() -> AsyncGenerator[FastAPI, None]:
