@@ -15,14 +15,12 @@ class PeriodType(StrEnum):
     WEEKLY = "주간"
 
 
-# User 관련 Enum
 class UserRole(StrEnum):
     USER = "user"
     STAFF = "staff"
     SUPERUSER = "superuser"
 
 
-# User 필드
 class User(TimestampMixin, Model):
     id = fields.BigIntField(pk=True, generated=True)
     nickname = fields.CharField(max_length=20, unique=True)
@@ -33,67 +31,67 @@ class User(TimestampMixin, Model):
     lastlogin = fields.DatetimeField(null=True)
     account_activation = fields.BooleanField(default=False)
     receive_notifications = fields.BooleanField(default=True)
-    user_roles = fields.CharEnumField(
-        enum_type=UserRole, default=UserRole.USER
-    )  # 유저 권한
+    user_roles = fields.CharEnumField(enum_type=UserRole, default=UserRole.USER)
 
+    # Notification은 M2M (through 사용)
     notifications: fields.ManyToManyRelation["Notification"] = fields.ManyToManyField(
         "models.Notification",
         related_name="users",
-        through="models.UserNotification",  # ← 조인 모델 경로
+        through="models.UserNotification",
     )
-    emotionstats: fields.ManyToManyRelation["EmotionStats"]
+
+    # ✅ EmotionStats는 1:N의 역참조(ReverseRelation)여야 함
+    emotion_stats: fields.ReverseRelation["EmotionStats"]
 
     class Meta:
         table = "users"
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"User(id={self.id}, email={self.email}, notifications_type={self.notifications})"
+        return f"User(id={self.id}, email={self.email})"
 
 
-# EmotionStats 필드
 class EmotionStats(Model):
     stat_id = fields.IntField(pk=True, auto_increment=True)
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
-        "models.User", related_name="emotion_stats"
-    )  # FK
-
-    period_type = fields.CharEnumField(PeriodType)  # ENUM
-    emotion_type = fields.CharEnumField(MainEmotionType)  # ENUM
-    frequency = fields.IntField()  # 횟수
-    created_at = fields.DatetimeField(auto_now_add=True)  # 생성시 자동 입력
+        "models.User",
+        related_name="emotion_stats",  # ← User.emotion_stats 와 이름 일치
+        on_delete=fields.CASCADE,
+        index=True,
+    )
+    period_type = fields.CharEnumField(PeriodType)
+    emotion_type = fields.CharEnumField(MainEmotionType)
+    frequency = fields.IntField()
+    created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
         table = "emotion_stats"
 
 
 # ---------------------------------------------------------------------
-# 유저 알람 조인 모델
+# 유저 ↔ 알림 조인 테이블
 # ---------------------------------------------------------------------
-
-
 class UserNotification(Model):
-    """
-    유저 - 알람 조인 테이블.
-    - 중복(같은 다이어리에 같은 태그) 방지
-    - 조인/필터 성능을 위해 (diary_id, tag_id) 인덱스
-    """
+    id = fields.IntField(pk=True)  # ✅ 명시 PK 추가(권장)
 
-    id = fields.IntField(pk=True, generated=True)
-    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+    user = fields.ForeignKeyField(
         "models.User",
+        related_name="user_notifications",
         on_delete=fields.CASCADE,
+        index=True,
     )
-    notification: fields.ForeignKeyRelation["Notification"] = fields.ForeignKeyField(
+    notification = fields.ForeignKeyField(
         "models.Notification",
+        related_name="user_notifications",
         on_delete=fields.CASCADE,
+        index=True,
     )
 
     class Meta:
         table = "user_notification"
         unique_together = (("user", "notification"),)
+        # ✅ 인덱스는 필드명 기준으로 선언
         indexes = (("user", "notification"),)
 
     def __str__(self) -> str:
-        return f"UserNotification(user_id={self.user.id}, notification_id={self.notification.id})"
+        return f"UserNotification(user_id={self.user_id}, notification_id={self.notification_id})"

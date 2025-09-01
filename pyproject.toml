@@ -16,6 +16,7 @@ dependencies = [
     "google-generativeai>=0.8.5",
     "httpx>=0.28.1",
     "mypy==1.17.1",
+    "passlib>=1.7.4",
     "pyjwt>=2.10.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",

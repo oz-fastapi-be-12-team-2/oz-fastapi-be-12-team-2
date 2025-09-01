@@ -17,7 +17,7 @@ class NotificationType(StrEnum):
 
 
 class Notification(TimestampMixin, Model):
-    id = fields.BigIntField(pk=True)
+    id = fields.BigIntField(pk=True, generated=True)
     content = fields.CharField(max_length=255, null=True)
     notification_type = fields.CharEnumField(
         NotificationType, default=NotificationType.EMAIL
@@ -30,4 +30,4 @@ class Notification(TimestampMixin, Model):
         return f"Notification(id={self.id}, content={self.content})"
 
     class Meta:
-        table = "notifications"
+        table = "notification"
