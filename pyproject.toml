@@ -20,6 +20,7 @@ dependencies = [
     "pytest-mock>=3.14.1",
     "python-dotenv==1.1.1",
     "python-multipart>=0.0.20",
+    "solapi>=5.0.2",
     "tortoise-orm==0.25.1",
     "uvicorn==0.35.0",
 ]
@@ -64,3 +65,7 @@ max-line-length = 120
 tortoise_orm = "core.config.TORTOISE_ORM"
 location = "./migrations"
 src_folder = "./."
+
+# coverage에 테스트 코드 제외
+[tool.coverage.run]
+omit = ["*/test_*.py"]
