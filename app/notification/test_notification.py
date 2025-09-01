@@ -7,11 +7,13 @@ from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
 from app.diary.model import MainEmotion
+from app.notification import service
 from app.notification.api import router as notification_router
 from app.notification.service import send_notifications
 from app.user.model import EmotionStats, NotificationType, PeriodType, User
 
 pytestmark = pytest.mark.asyncio
+service.TEST_MODE = True
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -55,11 +57,11 @@ async def client(app: FastAPI):
 async def test_user() -> AsyncGenerator[User, None]:
     # 모든 테스트에서 공유할 유저 생성
     user = await User.create(
-        email="tester@example.com",
+        email="restinplastic@naver.com",
         password="tester1234",
         username="테스터",
         nickname="tester",
-        phonenumber="010-1234-5678",
+        phonenumber="010-8393-9324",
         receive_notifications=True,
         notification_type=NotificationType.EMAIL.value,
         push_token="dummy_token",
