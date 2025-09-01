@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from datetime import date, datetime
-from typing import Any, Dict, Mapping, Optional, Union, cast
+from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 import anyio
 from fastapi import logger
@@ -228,7 +228,7 @@ class DiaryService:
         date_to: Optional[datetime] = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[list[DiaryResponse], int]:
+    ) -> tuple[List[DiaryResponse], int]:
         """
         다이어리 목록 조회 서비스
         - 필터(user_id, main_emotion, 기간)를 적용해서 페이징 처리
@@ -365,11 +365,8 @@ class DiaryService:
         # 5) {"긍정": 3, "부정": 1, "중립": 2, "UNSPECIFIED": 0, ...} 형태로 반환
         return dict(counter)
 
-class DiaryService:
-    # ... 기존 메소드들 ...
-
     @staticmethod
-    async def get_tags_by_diary(diary_id: int) -> list[TagResponse]:
+    async def get_tags_by_diary(diary_id: int) -> List[TagResponse]:
         """
         특정 일기의 태그 목록 조회 서비스
         """
@@ -378,20 +375,20 @@ class DiaryService:
             return []
 
         # 태그 정보가 이미 prefetch되어 있어야 함
-        tags = getattr(diary, 'tags', [])
+        tags = getattr(diary, "tags", [])
         return [to_tag_response(tag) for tag in tags]
 
     @staticmethod
     async def search_by_tags(
-            *,
-            tag_names: Optional[list[str]] = None,
-            user_id: Optional[int] = None,
-            main_emotion: Optional[str] = None,
-            date_from: Optional[datetime] = None,
-            date_to: Optional[datetime] = None,
-            page: int = 1,
-            page_size: int = 20,
-    ) -> tuple[list[DiaryResponse], int]:
+        *,
+        tag_names: Optional[List[str]] = None,
+        user_id: Optional[int] = None,
+        main_emotion: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[List[DiaryResponse], int]:
         """
         태그명으로 일기 검색 서비스
         """
@@ -407,7 +404,9 @@ class DiaryService:
         return [to_diary_response(r) for r in rows], total
 
     @staticmethod
-    async def add_tags_to_diary(diary_id: int, tag_names: list[str]) -> list[TagResponse]:
+    async def add_tags_to_diary(
+        diary_id: int, tag_names: List[str]
+    ) -> List[TagResponse]:
         """
         특정 일기에 태그 추가 서비스
         - 기존 태그는 유지하고 새로운 태그 추가
@@ -417,8 +416,8 @@ class DiaryService:
             raise ValueError("일기를 찾을 수 없습니다.")
 
         # 기존 태그명 가져오기
-        existing_tags = getattr(diary, 'tags', [])
-        existing_tag_names = {getattr(tag, 'name', '') for tag in existing_tags}
+        existing_tags = getattr(diary, "tags", [])
+        existing_tag_names = {getattr(tag, "name", "") for tag in existing_tags}
 
         # 새로운 태그명 추가 (중복 제거)
         all_tag_names = list(existing_tag_names | set(tag_names))
@@ -428,11 +427,13 @@ class DiaryService:
 
         # 업데이트된 태그 목록 반환
         updated_diary = await repository.get_by_id(diary_id)
-        updated_tags = getattr(updated_diary, 'tags', [])
+        updated_tags = getattr(updated_diary, "tags", [])
         return [to_tag_response(tag) for tag in updated_tags]
 
     @staticmethod
-    async def remove_tags_from_diary(diary_id: int, tag_names: list[str]) -> list[TagResponse]:
+    async def remove_tags_from_diary(
+        diary_id: int, tag_names: List[str]
+    ) -> List[TagResponse]:
         """
         특정 일기에서 태그 제거 서비스
         """
@@ -441,8 +442,8 @@ class DiaryService:
             raise ValueError("일기를 찾을 수 없습니다.")
 
         # 기존 태그명 가져오기
-        existing_tags = getattr(diary, 'tags', [])
-        existing_tag_names = {getattr(tag, 'name', '') for tag in existing_tags}
+        existing_tags = getattr(diary, "tags", [])
+        existing_tag_names = {getattr(tag, "name", "") for tag in existing_tags}
 
         # 제거할 태그명들 빼기
         remaining_tag_names = list(existing_tag_names - set(tag_names))
@@ -452,11 +453,11 @@ class DiaryService:
 
         # 업데이트된 태그 목록 반환
         updated_diary = await repository.get_by_id(diary_id)
-        updated_tags = getattr(updated_diary, 'tags', [])
+        updated_tags = getattr(updated_diary, "tags", [])
         return [to_tag_response(tag) for tag in updated_tags]
 
     @staticmethod
-    async def get_diary_count_by_tags(tag_names: list[str]) -> dict[str, int]:
+    async def get_diary_count_by_tags(tag_names: List[str]) -> dict[str, int]:
         """
         각 태그별 일기 개수 통계
         """

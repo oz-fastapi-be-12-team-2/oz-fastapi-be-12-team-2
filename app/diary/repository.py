@@ -188,15 +188,16 @@ async def delete(diary: Diary) -> None:
     """
     await diary.delete()
 
+
 async def search_by_tags(
-        *,
-        tag_names: Optional[list[str]] = None,
-        user_id: Optional[int] = None,
-        main_emotion: Optional[str] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        page: int = 1,
-        page_size: int = 20,
+    *,
+    tag_names: Optional[list[str]] = None,
+    user_id: Optional[int] = None,
+    main_emotion: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    page: int = 1,
+    page_size: int = 20,
 ) -> tuple[list[Diary], int]:
     """
     태그명으로 일기 검색
@@ -234,14 +235,14 @@ async def search_by_tags(
 
 
 async def search_by_all_tags(
-        *,
-        tag_names: list[str],
-        user_id: Optional[int] = None,
-        main_emotion: Optional[str] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        page: int = 1,
-        page_size: int = 20,
+    *,
+    tag_names: list[str],
+    user_id: Optional[int] = None,
+    main_emotion: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    page: int = 1,
+    page_size: int = 20,
 ) -> tuple[list[Diary], int]:
     """
     모든 태그를 포함하는 일기 검색 (AND 조건)
@@ -291,11 +292,11 @@ async def count_diaries_by_tag_name(tag_name: str) -> int:
 
 
 async def get_diaries_with_tag_count(
-        *,
-        min_tag_count: int = 1,
-        user_id: Optional[int] = None,
-        page: int = 1,
-        page_size: int = 20,
+    *,
+    min_tag_count: int = 1,
+    user_id: Optional[int] = None,
+    page: int = 1,
+    page_size: int = 20,
 ) -> tuple[list[Diary], int]:
     """
     최소 N개 이상의 태그를 가진 일기들 조회
@@ -312,7 +313,7 @@ async def get_diaries_with_tag_count(
     # 태그 개수 조건 필터링
     filtered_diaries = []
     for diary in all_diaries:
-        tags = getattr(diary, 'tags', [])
+        tags = getattr(diary, "tags", [])
         if len(tags) >= min_tag_count:
             filtered_diaries.append(diary)
 

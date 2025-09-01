@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import (
     APIRouter,
+    Depends,
     File,
     Form,
     HTTPException,
@@ -23,9 +24,11 @@ from app.diary.schema import (
     DiaryUpdate,
     PageMeta,
 )
-from app.tag.schema import TagListResponse, TagResponse
 from app.diary.service import DiaryService
 from app.files.service import CloudinaryService
+from app.tag.schema import TagListResponse
+from app.user.auth import get_current_user
+from app.user.model import User
 
 # ---------------------------------------------------------------------
 # 다이어리 API 라우터
@@ -87,22 +90,23 @@ def _merge_unique(a: Optional[List[str]], b: Optional[List[str]]) -> List[str]:
 # ---------------------------------------------------------------------
 @router.post("", response_model=DiaryResponse, status_code=201)
 async def create_diary(
-    payload_json: Annotated[str, Form(...)],
-    image_files: Annotated[Optional[List[UploadFile]], File()] = None,
+    title: str = Form(...),
+    content: str = Form(...),
+    tags: Optional[List[str]] = Form(None),  # Form으로 받아야 multipart 노출됨
+    images: Optional[List[UploadFile]] = File(None),
+    current_user: User = Depends(get_current_user),
 ):
-    # 1) JSON 파싱
-    try:
-        payload = DiaryCreate.model_validate_json(payload_json)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"payload_json 파싱 실패: {e}")
-
-    # 2) 파일 업로드 → URL
-    uploaded_urls = await CloudinaryService.upload_images_to_urls(image_files)
-
-    # 3) 업로드 URL 저장 (순서 보존/중복 제거)
-    payload.image_urls = uploaded_urls
-
-    # 4) 서비스 호출(AI는 주입되면 사용, 없으면 자동 스킵)
+    # opts = UploadImageOptions(folder="diary")
+    image_urls = await CloudinaryService.upload_images_to_urls(images)
+    print("api.image_urls", image_urls)
+    payload = DiaryCreate(
+        user_id=current_user.id,
+        emotion_analysis_report=None,
+        title=title,
+        content=content,
+        tags=tags or [],
+        image_urls=image_urls,
+    )
     return await DiaryService.create(payload)
 
 
@@ -295,6 +299,8 @@ async def stats_daily(
             date_to=dt_to,
         )
     }
+
+
 # ---------------------------------------------------------------------
 # 특정 일기의 태그 목록 조회 API
 # GET /diaries/{diary_id}/tags
@@ -333,13 +339,17 @@ async def get_diary_tags(diary_id: int):
     response_model_exclude_none=True,
 )
 async def search_diaries_by_tags(
-        tags: Optional[str] = Query(None, description="검색할 태그명들 (쉼표로 구분, 예: 'tag1,tag2')"),
-        user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
-        main_emotion: Optional[MainEmotionType] = Query(None, description="주요 감정 라벨로 필터링"),
-        date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
-        date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
-        page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
-        page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+    tags: Optional[str] = Query(
+        None, description="검색할 태그명들 (쉼표로 구분, 예: 'tag1,tag2')"
+    ),
+    user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
+    main_emotion: Optional[MainEmotionType] = Query(
+        None, description="주요 감정 라벨로 필터링"
+    ),
+    date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
+    date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
+    page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
+    page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
 ):
     """
     태그명으로 일기 검색 (diary 모듈에서 제공)
@@ -384,8 +394,8 @@ async def search_diaries_by_tags(
     status_code=200,
 )
 async def add_tags_to_diary(
-        diary_id: int,
-        tag_names: List[str] = Query(..., description="추가할 태그명 목록"),
+    diary_id: int,
+    tag_names: List[str] = Query(..., description="추가할 태그명 목록"),
 ):
     """
     특정 일기에 태그 추가
@@ -416,8 +426,8 @@ async def add_tags_to_diary(
     status_code=200,
 )
 async def remove_tags_from_diary(
-        diary_id: int,
-        tag_names: List[str] = Query(..., description="제거할 태그명 목록"),
+    diary_id: int,
+    tag_names: List[str] = Query(..., description="제거할 태그명 목록"),
 ):
     """
     특정 일기에서 태그 제거

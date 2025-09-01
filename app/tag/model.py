@@ -16,6 +16,7 @@ class Tag(Model):
     - 태그명은 unique 제약 (같은 이름의 태그는 하나만 존재)
     - 시간 정보는 불필요 (태그는 불변의 분류 라벨)
     """
+
     id = fields.IntField(pk=True, generated=True)
     name = fields.CharField(max_length=50, unique=True, index=True)
 

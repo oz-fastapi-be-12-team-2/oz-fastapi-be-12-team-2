@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query
 
 from app.tag.schema import (
     PageMeta,
@@ -41,9 +41,9 @@ async def create_tag(payload: TagCreate):
 # ---------------------------------------------------------------------
 @router.get("", response_model=TagListResponse, response_model_exclude_none=True)
 async def list_tags(
-        name: Optional[str] = Query(None, description="태그명으로 검색 (부분 일치)"),
-        page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
-        page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+    name: Optional[str] = Query(None, description="태그명으로 검색 (부분 일치)"),
+    page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
+    page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
 ):
     """
     태그 목록 조회 (페이징)
@@ -86,12 +86,12 @@ async def get_tag(tag_id: int):
 @router.get(
     "/{tag_id}/diaries",
     response_model=TagDiaryListResponse,
-    response_model_exclude_none=True
+    response_model_exclude_none=True,
 )
 async def get_diaries_by_tag(
-        tag_id: int,
-        page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
-        page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+    tag_id: int,
+    page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
+    page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
 ):
     """
     특정 태그가 붙은 일기 목록 조회
@@ -127,9 +127,9 @@ async def get_diaries_by_tag(
     response_model_exclude_none=True,
 )
 async def search_diaries_by_tag_name(
-        tag_name: str = Query(..., description="검색할 태그명"),
-        page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
-        page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+    tag_name: str = Query(..., description="검색할 태그명"),
+    page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
+    page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
 ):
     """
     태그명으로 일기 검색
@@ -139,7 +139,9 @@ async def search_diaries_by_tag_name(
     # 태그명으로 태그 조회
     tag = await TagService.get_by_name(tag_name)
     if not tag:
-        raise HTTPException(status_code=404, detail=f"'{tag_name}' 태그를 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=404, detail=f"'{tag_name}' 태그를 찾을 수 없습니다."
+        )
 
     diaries, total = await TagService.get_diaries_by_tag(
         tag_id=tag.id,

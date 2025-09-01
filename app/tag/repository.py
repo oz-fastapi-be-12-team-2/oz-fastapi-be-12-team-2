@@ -56,10 +56,10 @@ async def get_by_name(name: str) -> Optional[Tag]:
 
 
 async def list_tags(
-        *,
-        name: Optional[str] = None,
-        page: int = 1,
-        page_size: int = 20,
+    *,
+    name: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
 ) -> Tuple[Sequence[Tag], int]:
     """
     태그 목록 조회 (검색 + 페이징)
@@ -80,10 +80,10 @@ async def list_tags(
 
 
 async def get_diaries_by_tag_id(
-        tag_id: int,
-        *,
-        page: int = 1,
-        page_size: int = 20,
+    tag_id: int,
+    *,
+    page: int = 1,
+    page_size: int = 20,
 ) -> Tuple[Sequence[Diary], int]:
     """
     특정 태그 ID가 붙은 일기 목록 조회
@@ -99,16 +99,18 @@ async def get_diaries_by_tag_id(
     total = await qs.count()
 
     # 페이징 + 정렬 (최신순)
-    items = await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+    items = (
+        await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+    )
 
     return items, total
 
 
 async def get_diaries_by_tag_name(
-        tag_name: str,
-        *,
-        page: int = 1,
-        page_size: int = 20,
+    tag_name: str,
+    *,
+    page: int = 1,
+    page_size: int = 20,
 ) -> Tuple[Sequence[Diary], int]:
     """
     특정 태그명이 붙은 일기 목록 조회
@@ -123,7 +125,9 @@ async def get_diaries_by_tag_name(
     total = await qs.count()
 
     # 페이징 + 정렬 (최신순)
-    items = await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+    items = (
+        await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+    )
 
     return items, total
 
@@ -170,6 +174,8 @@ async def get_popular_tags(limit: int = 10) -> Sequence[Tag]:
     tags = await Tag.all().prefetch_related("diaries")
 
     # 일기 수로 정렬
-    sorted_tags = sorted(tags, key=lambda t: len(getattr(t, 'diaries', [])), reverse=True)
+    sorted_tags = sorted(
+        tags, key=lambda t: len(getattr(t, "diaries", [])), reverse=True
+    )
 
     return sorted_tags[:limit]

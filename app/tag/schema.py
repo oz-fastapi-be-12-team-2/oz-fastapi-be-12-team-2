@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,6 +11,7 @@ from app.diary.schema import DiaryListItem, PageMeta
 # ============================================================
 TagName = Annotated[str, Field(min_length=1, max_length=50)]
 
+
 # ============================================================
 # 2) 요청(Request) 스키마
 # ============================================================
@@ -19,6 +19,7 @@ class TagCreate(BaseModel):
     """
     태그 생성 요청
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     name: TagName
@@ -28,6 +29,7 @@ class TagUpdate(BaseModel):
     """
     태그 수정 요청
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     name: TagName
@@ -40,13 +42,14 @@ class TagResponse(BaseModel):
     """
     태그 응답
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
     diary_count: Optional[int] = Field(
         default=None,
-        description="이 태그를 사용하는 일기 수 (관련 데이터가 로드된 경우에만 제공)"
+        description="이 태그를 사용하는 일기 수 (관련 데이터가 로드된 경우에만 제공)",
     )
 
 
@@ -54,6 +57,7 @@ class TagListResponse(BaseModel):
     """
     태그 목록 응답
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     items: List[TagResponse]
@@ -64,6 +68,7 @@ class TagDiaryListResponse(BaseModel):
     """
     특정 태그의 일기 목록 응답
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     tag: TagResponse
@@ -82,18 +87,19 @@ def to_tag_response(tag) -> TagResponse:
     diary_count = None
 
     # diaries 관계가 prefetch되었는지 확인
-    if hasattr(tag, 'diaries'):
-        diaries = getattr(tag, 'diaries', None)
+    if hasattr(tag, "diaries"):
+        diaries = getattr(tag, "diaries", None)
         if diaries is not None:
             try:
                 # Tortoise ORM의 경우 이미 로드된 관계는 리스트처럼 동작
-                if hasattr(diaries, '__len__'):
+                if hasattr(diaries, "__len__"):
                     diary_count = len(diaries)
-                elif hasattr(diaries, 'count'):
+                elif hasattr(diaries, "count"):
                     # 만약 아직 로드되지 않았다면 None 유지 (별도 쿼리 방지)
                     pass
-            except:
-                # 접근 오류 시 None 유지
+            except (TypeError, AttributeError):
+                # TypeError: len()이나 hasattr 호출 시 타입 오류
+                # AttributeError: 예상하지 못한 속성 접근 오류
                 diary_count = None
 
     return TagResponse(
