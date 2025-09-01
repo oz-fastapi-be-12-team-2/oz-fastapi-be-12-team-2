@@ -1,9 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 
 from app.diary.model import MainEmotionType
 from app.diary.schema import (
@@ -16,6 +25,7 @@ from app.diary.schema import (
 )
 from app.diary.service import DiaryService
 from app.files.service import CloudinaryService
+from app.tag.schema import TagListResponse
 from app.user.auth import get_current_user
 from app.user.model import User
 
@@ -74,8 +84,9 @@ async def create_diary(
     images: Optional[List[UploadFile]] = File(None),
     current_user: User = Depends(get_current_user),
 ):
+    # opts = UploadImageOptions(folder="diary")
     image_urls = await CloudinaryService.upload_images_to_urls(images)
-
+    print("api.image_urls", image_urls)
     payload = DiaryCreate(
         user_id=current_user.id,
         emotion_analysis_report=None,
@@ -84,6 +95,7 @@ async def create_diary(
         tags=tags or [],
         image_urls=image_urls,
     )
+
     return await DiaryService.create(payload)
 
 
@@ -221,3 +233,182 @@ async def stats_summary(
             date_to=date_to,
         )
     }
+
+
+@router.get("/stats/daily", response_model_exclude_none=True)
+async def stats_daily(
+    user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
+    date_to: Optional[date] = Query(None, description="조회 기준일 (YYYY-MM-DD)"),
+    days: int = Query(7, ge=1, le=365, description="최근 N일 (기본 7, 오늘 포함)"),
+):
+    """
+    - date_to가 주어지면: [date_to - (days-1) ~ date_to] 범위 일간
+    - date_to가 없으면: 타임존 기준 오늘을 date_to로 사용
+    - user_id 미지정 시 전체 사용자 기준
+    - 반환: {"period":"daily","from":YYYY-MM-DD,"to":YYYY-MM-DD,"items":[...]}
+    """
+    zone = ZoneInfo("Asia/Seoul")
+
+    # 기준일 결정(없으면 타임존 기준 오늘)
+    today = datetime.now(zone).date()
+    to_d = date_to or today
+    from_d = to_d - timedelta(days=days - 1)
+
+    # 날짜 → [00:00, 다음날 00:00) (타임존 포함)로 변환
+    dt_from = datetime.combine(from_d, time.min).replace(tzinfo=zone)
+    dt_to = datetime.combine(to_d + timedelta(days=1), time.min).replace(tzinfo=zone)
+
+    return {
+        "items": await DiaryService.emotion_stats(
+            user_id=user_id,
+            date_from=dt_from,
+            date_to=dt_to,
+        )
+    }
+
+
+# ---------------------------------------------------------------------
+# 특정 일기의 태그 목록 조회 API
+# GET /diaries/{diary_id}/tags
+# ---------------------------------------------------------------------
+@router.get(
+    "/{diary_id}/tags",
+    response_model=TagListResponse,
+    response_model_exclude_none=True,
+)
+async def get_diary_tags(diary_id: int):
+    """
+    특정 일기의 태그 목록 조회
+    - Path Param: diary_id (일기 ID)
+    - Response: TagListResponse
+    """
+    # 일기 존재 여부 확인
+    diary = await DiaryService.get(diary_id)
+    if not diary:
+        raise HTTPException(status_code=404, detail="존재하지않는 다이어리입니다.")
+
+    tags = await DiaryService.get_tags_by_diary(diary_id)
+
+    return TagListResponse(
+        items=tags,
+        meta=PageMeta(page=1, page_size=len(tags), total=len(tags)),
+    )
+
+
+# ---------------------------------------------------------------------
+# 태그명으로 일기 검색 API (diary 모듈에서 제공)
+# GET /diaries/search?tags=tag1,tag2&user_id=1
+# ---------------------------------------------------------------------
+@router.get(
+    "/search",
+    response_model=DiaryListResponse,
+    response_model_exclude_none=True,
+)
+async def search_diaries_by_tags(
+    tags: Optional[str] = Query(
+        None, description="검색할 태그명들 (쉼표로 구분, 예: 'tag1,tag2')"
+    ),
+    user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
+    main_emotion: Optional[MainEmotionType] = Query(
+        None, description="주요 감정 라벨로 필터링"
+    ),
+    date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
+    date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
+    page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
+    page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+):
+    """
+    태그명으로 일기 검색 (diary 모듈에서 제공)
+    - Query Params: tags (쉼표 구분), user_id, main_emotion, date_from, date_to, page, page_size
+    - Response: DiaryListResponse
+    """
+    # 태그 파싱
+    tag_names = []
+    if tags:
+        tag_names = [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+    raw_items, total = await DiaryService.search_by_tags(
+        tag_names=tag_names,
+        user_id=user_id,
+        main_emotion=(
+            main_emotion.value
+            if isinstance(main_emotion, MainEmotionType)
+            else main_emotion
+        ),
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
+
+    # 어떤 타입이 오든 리스트 요약으로 변환
+    items: list[DiaryListItem] = [_as_list_item(it) for it in (raw_items or [])]
+
+    return DiaryListResponse(
+        items=items,
+        meta=PageMeta(page=page, page_size=page_size, total=total),
+    )
+
+
+# ---------------------------------------------------------------------
+# 특정 일기에 태그 추가/제거 API
+# POST /diaries/{diary_id}/tags
+# ---------------------------------------------------------------------
+@router.post(
+    "/{diary_id}/tags",
+    response_model=TagListResponse,
+    status_code=200,
+)
+async def add_tags_to_diary(
+    diary_id: int,
+    tag_names: List[str] = Query(..., description="추가할 태그명 목록"),
+):
+    """
+    특정 일기에 태그 추가
+    - Path Param: diary_id (일기 ID)
+    - Query Param: tag_names (추가할 태그명들)
+    - Response: 업데이트된 태그 목록
+    """
+    # 일기 존재 여부 확인
+    diary = await DiaryService.get(diary_id)
+    if not diary:
+        raise HTTPException(status_code=404, detail="존재하지않는 다이어리입니다.")
+
+    updated_tags = await DiaryService.add_tags_to_diary(diary_id, tag_names)
+
+    return TagListResponse(
+        items=updated_tags,
+        meta=PageMeta(page=1, page_size=len(updated_tags), total=len(updated_tags)),
+    )
+
+
+# ---------------------------------------------------------------------
+# 특정 일기에서 태그 제거 API
+# DELETE /diaries/{diary_id}/tags
+# ---------------------------------------------------------------------
+@router.delete(
+    "/{diary_id}/tags",
+    response_model=TagListResponse,
+    status_code=200,
+)
+async def remove_tags_from_diary(
+    diary_id: int,
+    tag_names: List[str] = Query(..., description="제거할 태그명 목록"),
+):
+    """
+    특정 일기에서 태그 제거
+    - Path Param: diary_id (일기 ID)
+    - Query Param: tag_names (제거할 태그명들)
+    - Response: 업데이트된 태그 목록
+    """
+    # 일기 존재 여부 확인
+    diary = await DiaryService.get(diary_id)
+    if not diary:
+        raise HTTPException(status_code=404, detail="존재하지않는 다이어리입니다.")
+
+    updated_tags = await DiaryService.remove_tags_from_diary(diary_id, tag_names)
+
+    return TagListResponse(
+        items=updated_tags,
+        meta=PageMeta(page=1, page_size=len(updated_tags), total=len(updated_tags)),
+    )
