@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Optional, Tuple
 
 from fastapi import HTTPException
@@ -44,10 +43,10 @@ class UserService:
                 phonenumber=payload.phonenumber,
             )
 
-            types = payload.notification_types
+            types = payload.notification_type
             print("user.service.types", types)
             if types is not None:
-                names = [t.value if isinstance(t, Enum) else str(t) for t in types]
+                names = payload.notification_type
                 print("user.service.names", names)
                 await repository.replace_notifications(user, names)
 

@@ -61,7 +61,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
         "receive_notifications": True,  # 테스트용 기본값
-        "notifications": [],            # 테스트용 빈 리스트
+        "notifications": [],  # 테스트용 빈 리스트
     }
 
 
