@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from tortoise import fields
 from tortoise.models import Model
+
+if TYPE_CHECKING:
+    from app.diary.model import Diary  # 실제 Tag 모델이 정의된 경로에 맞춰 수정
 
 
 class Tag(Model):
@@ -13,10 +18,8 @@ class Tag(Model):
     """
 
     id = fields.IntField(pk=True, generated=True)
-    name = fields.CharField(max_length=50, unique=True, index=True)
-
-    # 다대다 관계: 하나의 태그는 여러 일기에 사용될 수 있고,
-    # 하나의 일기는 여러 태그를 가질 수 있음
+    name = fields.CharField(max_length=50, unique=True)
+    diaries: fields.ManyToManyRelation["Diary"]
 
     class Meta:
         table = "tags"

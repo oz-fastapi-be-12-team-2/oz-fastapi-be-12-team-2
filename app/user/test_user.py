@@ -8,7 +8,6 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
-from app.notification.model import NotificationType
 from app.user.api import router as user_router
 from app.user.model import User
 from app.user.utils import hash_password
@@ -87,7 +86,7 @@ async def test_signup_and_login(client: AsyncClient):
             "nickname": "tester",
             "username": "테스트유저",
             "phonenumber": "010-1234-5678",
-            "notification_types": [NotificationType.SMS],
+            "notification_types": "PUSH",
         },
     )
     assert resp.status_code in (200, 201)  # 라우터 설정에 따라 200/201 둘 다 허용
