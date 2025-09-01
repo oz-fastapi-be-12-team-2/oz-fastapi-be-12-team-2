@@ -138,7 +138,7 @@ async def test_get_profile(client: AsyncClient):
     assert "receive_notifications" in data
     assert "notifications" in data
     assert isinstance(data["receive_notifications"], bool)
-    assert isinstance(data["notifications"], list)
+    assert isinstance(data["notification_type"], str)
 
 
 @pytest.mark.asyncio

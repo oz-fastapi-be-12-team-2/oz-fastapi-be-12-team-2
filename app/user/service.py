@@ -1,13 +1,32 @@
-from typing import Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 from fastapi import HTTPException
 from tortoise.transactions import in_transaction
 
 from app.notification import repository
+from app.notification.model import NotificationType
 from app.user.auth import create_access_token, create_refresh_token
 from app.user.model import User
-from app.user.schema import UserCreate, UserLogin, UserUpdate
+from app.user.schema import UserCreate, UserLogin, UserResponse, UserUpdate
 from app.user.utils import hash_password, verify_password
+
+
+def _normalize_names(v: Optional[str | Sequence[str]]) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, str):
+        items = [v]
+    else:
+        items = list(v)
+    out: list[str] = []
+    seen: set[str] = set()
+    for s in items:
+        name = str(s).strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+    return out
 
 
 class UserService:
@@ -27,30 +46,50 @@ class UserService:
     # Sign up
     # ─────────────────────────────────────────────────────────
     @staticmethod
-    async def signup(payload: UserCreate) -> User:
-        """
-        - 비밀번호 해싱
-        - 사용자 생성
-        - notification_types가 있으면 연결 갱신
-        """
-        async with in_transaction():
-            # 사용자 생성 (동일 트랜잭션 사용)
+    async def signup(payload: UserCreate) -> UserResponse:
+        async with in_transaction() as conn:
             user = await User.create(
                 email=payload.email,
                 password=hash_password(payload.password),
                 nickname=payload.nickname,
                 username=payload.username,
                 phonenumber=payload.phonenumber,
+                using_db=conn,
             )
 
-            types = payload.notification_type
-            print("user.service.types", types)
-            if types is not None:
-                names = payload.notification_type
-                print("user.service.names", names)
-                await repository.replace_notifications(user, names)
+            # ← 여기 수정
+            raw = getattr(
+                payload, "notification_type", None
+            )  # str | list[str] | None 가정
+            names = _normalize_names(raw)
+            if names:
+                # 허용값 집합 (Enum 쓰면 아래처럼)
+                allowed = {e.value for e in NotificationType}
+                invalid = [n for n in names if n not in allowed]
+                if invalid:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"지원하지 않는 notification_type: {invalid}",
+                    )
 
-        return user
+                # 같은 트랜잭션으로 관계 갱신
+                await repository.replace_notifications(user, names, using_db=conn)
+
+        # 응답 구성 (없으면 빈 문자열/혹은 Optional[str]로 스키마 조정)
+        notif = await user.notifications.all().first()
+        notification_type: str = notif.notification_type if notif else ""
+
+        return UserResponse(
+            id=user.id,
+            email=user.email,
+            nickname=user.nickname,
+            username=user.username,
+            phonenumber=user.phonenumber,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+            receive_notifications=user.receive_notifications,
+            notification_type=notification_type,
+        )
 
     # ─────────────────────────────────────────────────────────
     # Login
