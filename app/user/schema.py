@@ -56,3 +56,9 @@ class UserUpdate(BaseModel):
     nickname: str | None = None
     username: str | None = None
     phonenumber: str | None = None
+
+
+# 알림 설정 수정
+class NotificationUpdateRequest(BaseModel):
+    receive_notifications: bool
+    notification_type: Optional[str] = None  # EMAIL / PUSH / SMS 중 하나

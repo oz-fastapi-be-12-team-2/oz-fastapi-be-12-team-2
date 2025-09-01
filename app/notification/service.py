@@ -12,16 +12,20 @@ from app.notification import repository
 from app.notification.model import NotificationType
 from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
-from app.user.service import WEEKDAY_MESSAGES
 
 load_dotenv()
 
 TEST_MODE = False  # 기본값: 실제 발송
 
 
-# 앱 테이블 전체 조회
+# 알림 테이블 전체 조회
 async def list_notifications():
     return await repository.get_all_notifications()
+
+
+# 유저-알림 조인 테이블 전체 조회
+async def list_user_notifications():
+    return await repository.get_user_notifications()
 
 
 async def check_weekly_negative_emotions(user_id: int) -> bool:
@@ -49,14 +53,10 @@ async def send_notifications():
     if users is None:
         return None
 
-    today = date.today()
-    weekday = today.weekday()
-    message = WEEKDAY_MESSAGES[weekday]
-
     sent_notifications = []
     for user in users:
         if await check_weekly_negative_emotions(user.id):
-            content = message
+            content = "message"
             notification_type = user.notifications.__getattribute__("notification_type")
             notification = await create_notification(
                 content=content,

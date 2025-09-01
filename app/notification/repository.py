@@ -1,8 +1,8 @@
-from tortoise.exceptions import DoesNotExist
+from fastapi import HTTPException
 from tortoise.transactions import in_transaction
 
 from app.notification.model import Notification, NotificationType
-from app.user.model import User
+from app.user.model import User, UserNotification
 
 
 async def create_notification(
@@ -26,13 +26,26 @@ async def get_all_notifications() -> list[Notification]:
     return await Notification.all().order_by("weekday", "notification_type")
 
 
+# 알림-유저 조인 테이블 조회
+async def get_user_notifications() -> list[UserNotification]:
+    return await UserNotification.all()
+
+
 # 타입 힌팅 수정(list[Notification] -> Notification | None)
-async def get_notifications_for_user(user_id: int) -> Notification | None:
-    try:
-        user = await User.get(id=user_id).prefetch_related("notifications")
-    except DoesNotExist:
-        return None
-    return await user.notifications.all().first()
+async def get_notifications_for_user(user_id: int) -> Notification:
+    # 유저 존재 여부 확인
+    exists = await User.exists(id=user_id)
+    if not exists:
+        raise HTTPException(status_code=404, detail="존재하지 않는 유저입니다.")
+
+    # 조인 테이블(UserNotification)에서 먼저 조회
+    user_notif = await UserNotification.get_or_none(user_id=user_id).prefetch_related(
+        "notification"
+    )
+    if not user_notif or not user_notif.notification:
+        raise HTTPException(status_code=404, detail="알림이 없습니다.")
+
+    return user_notif.notification
 
 
 async def replace_notifications(

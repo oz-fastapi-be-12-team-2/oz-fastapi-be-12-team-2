@@ -53,7 +53,6 @@ CREATE TABLE IF NOT EXISTS "tags" (
     "id" SERIAL NOT NULL PRIMARY KEY,
     "name" VARCHAR(50) NOT NULL UNIQUE
 );
-CREATE INDEX IF NOT EXISTS "idx_tags_name_15558f" ON "tags" ("name");
 COMMENT ON TABLE "tags" IS '태그 모델';
 CREATE TABLE IF NOT EXISTS "diary_tag" (
     "id" SERIAL NOT NULL PRIMARY KEY,
@@ -65,23 +64,23 @@ CREATE INDEX IF NOT EXISTS "idx_diary_tag_diary_i_0fa63c" ON "diary_tag" ("diary
 CREATE INDEX IF NOT EXISTS "idx_diary_tag_tag_id_5bea5d" ON "diary_tag" ("tag_id");
 CREATE INDEX IF NOT EXISTS "idx_diary_tag_diary_i_47c64b" ON "diary_tag" ("diary_id", "tag_id");
 COMMENT ON TABLE "diary_tag" IS 'Diary - Tag 조인 테이블.';
-CREATE TABLE IF NOT EXISTS "notification" (
-    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE IF NOT EXISTS "notifications" (
     "id" BIGSERIAL NOT NULL PRIMARY KEY,
-    "content" VARCHAR(255),
-    "notification_type" VARCHAR(5) NOT NULL DEFAULT 'EMAIL'
+    "weekday" INT NOT NULL,
+    "content" VARCHAR(255) NOT NULL,
+    "notification_type" VARCHAR(5) NOT NULL DEFAULT 'EMAIL',
+    CONSTRAINT "uid_notificatio_weekday_31184a" UNIQUE ("weekday", "notification_type")
 );
-COMMENT ON COLUMN "notification"."notification_type" IS 'PUSH: PUSH\nEMAIL: EMAIL\nSMS: SMS';
-CREATE TABLE IF NOT EXISTS "user_notification" (
+COMMENT ON COLUMN "notifications"."notification_type" IS 'PUSH: PUSH\nEMAIL: EMAIL\nSMS: SMS';
+CREATE TABLE IF NOT EXISTS "user_notifications" (
     "id" SERIAL NOT NULL PRIMARY KEY,
-    "notification_id" BIGINT NOT NULL REFERENCES "notification" ("id") ON DELETE CASCADE,
+    "notification_id" BIGINT NOT NULL REFERENCES "notifications" ("id") ON DELETE CASCADE,
     "user_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
-    CONSTRAINT "uid_user_notifi_user_id_d6887e" UNIQUE ("user_id", "notification_id")
+    CONSTRAINT "uid_user_notifi_user_id_d81124" UNIQUE ("user_id", "notification_id")
 );
-CREATE INDEX IF NOT EXISTS "idx_user_notifi_notific_3d832b" ON "user_notification" ("notification_id");
-CREATE INDEX IF NOT EXISTS "idx_user_notifi_user_id_40d987" ON "user_notification" ("user_id");
-CREATE INDEX IF NOT EXISTS "idx_user_notifi_user_id_d6887e" ON "user_notification" ("user_id", "notification_id");
+CREATE INDEX IF NOT EXISTS "idx_user_notifi_notific_db0a65" ON "user_notifications" ("notification_id");
+CREATE INDEX IF NOT EXISTS "idx_user_notifi_user_id_625de7" ON "user_notifications" ("user_id");
+CREATE INDEX IF NOT EXISTS "idx_user_notifi_user_id_d81124" ON "user_notifications" ("user_id", "notification_id");
 CREATE TABLE IF NOT EXISTS "aerich" (
     "id" SERIAL NOT NULL PRIMARY KEY,
     "version" VARCHAR(255) NOT NULL,
@@ -90,7 +89,7 @@ CREATE TABLE IF NOT EXISTS "aerich" (
 );
 CREATE TABLE IF NOT EXISTS "models.UserNotification" (
     "users_id" BIGINT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
-    "notification_id" BIGINT NOT NULL REFERENCES "notification" ("id") ON DELETE CASCADE
+    "notification_id" BIGINT NOT NULL REFERENCES "notifications" ("id") ON DELETE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "uidx_models.User_users_i_b77d28" ON "models.UserNotification" ("users_id", "notification_id");
 CREATE TABLE IF NOT EXISTS "models.DiaryTag" (

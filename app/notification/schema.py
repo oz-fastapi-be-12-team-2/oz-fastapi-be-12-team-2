@@ -17,3 +17,12 @@ class NotificationResponse(BaseModel):
 
     class Config:
         orm_mode = True  # ORM 객체를 그대로 Pydantic 모델로 변환 가능
+
+
+class UserNotificationResponse(BaseModel):
+    id: int
+    user_id: int
+    notification_id: int
+
+    class Config:
+        orm_mode = True

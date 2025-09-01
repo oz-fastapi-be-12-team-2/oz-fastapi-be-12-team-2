@@ -5,9 +5,8 @@ from fastapi import HTTPException
 from tortoise.transactions import in_transaction
 
 from app.notification.model import Notification, NotificationType
-from app.notification.seed import WEEKDAY_MESSAGES
 from app.user.auth import create_access_token, create_refresh_token
-from app.user.model import User
+from app.user.model import User, UserNotification
 from app.user.schema import UserCreate, UserLogin, UserResponse, UserUpdate
 from app.user.utils import hash_password, verify_password
 
@@ -61,7 +60,7 @@ class UserService:
 
             notification_type_value: Optional[str] = None  # 임시 변수
 
-            # 알림 수신 동의한 경우 알림 생성
+            # 알림 수신 동의한 경우 조인 테이블 데이터 추가
             if payload.receive_notifications and payload.notification_type:
                 # Enum값 인증 if문 안에서 수행
                 allowed = {e.value for e in NotificationType}
@@ -74,14 +73,21 @@ class UserService:
                 # 요일 메세지
                 today = date.today()
                 weekday = today.weekday()
-                message = WEEKDAY_MESSAGES[weekday]
 
-                # Notification 생성
-                notif = await Notification.create(
-                    user=user,
-                    content=message,
+                # Notification 데이터 찾기
+                notif = await Notification.get_or_none(
+                    weekday=weekday,
                     notification_type=payload.notification_type,
-                    using_db=conn,
+                )
+                if not notif:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="해당 요일/타입 알림 정의가 존재하지 않습니다.",
+                    )
+
+                # UserNotification 생성
+                await UserNotification.create(
+                    user_id=user.id, notification_id=notif.id, using_db=conn
                 )
                 notification_type_value = notif.notification_type
 
@@ -102,10 +108,6 @@ class UserService:
 
             # # 같은 트랜잭션으로 관계 갱신
             # await repository.replace_notifications(user, names, using_db=conn)
-
-        # # 응답 구성 (없으면 빈 문자열/혹은 Optional[str]로 스키마 조정)
-        # notif = await user.notifications.all().first()
-        # notification_type: str = notif.notification_type if notif else ""
 
         return UserResponse(
             id=user.id,
@@ -172,6 +174,59 @@ class UserService:
 
         await current_user.save()
         return current_user
+
+    @staticmethod
+    async def update_notification_settings(current_user: User, notification_type: Optional[str], receive: bool) -> None:
+        """
+        유저 알림 설정 수정
+        - receive=False → 알림 모두 해제
+        - receive=True + notification_type → 해당 요일/타입 알림으로 갱신
+        """
+        # 1) 알림 해제
+        if not receive:
+            await UserNotification.filter(user_id=current_user.id).delete()
+            current_user.receive_notifications = False
+            await current_user.save()
+            return
+
+        # 2) notification_type 필수 검증
+        if not notification_type:
+            raise HTTPException(status_code=400, detail="notification_type은 필수입니다.")
+
+        # 3) Enum 값 검증
+        allowed = {e.value for e in NotificationType}
+        if notification_type not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"지원하지 않는 notification_type: {notification_type}",
+            )
+
+        # 4) 오늘 요일 기반 알림 찾기
+        today = date.today()
+        weekday = today.weekday()
+        notif = await Notification.get_or_none(weekday=weekday, notification_type=notification_type)
+        if not notif:
+            raise HTTPException(
+                status_code=500,
+                detail="해당 요일/타입 알림 정의가 존재하지 않습니다.",
+            )
+
+        # 5) 조인 테이블(UserNotification) 업데이트
+        user_notif = await UserNotification.get_or_none(user_id=current_user.id)
+        if user_notif:
+            user_notif.notification = notif  # ✅ relation 객체 갱신
+            await user_notif.save()
+            print(f"🔄 UserNotification updated: user_id={current_user.id}, notif_id={notif.id}")
+        else:
+            created = await UserNotification.create(
+                user=current_user,
+                notification=notif,
+            )
+            print(f"✅ UserNotification created: {created}")
+
+        # 6) User 테이블 값 갱신
+        current_user.receive_notifications = True
+        await current_user.save()
 
     @staticmethod
     async def delete_user(current_user: User) -> None:
