@@ -1,4 +1,7 @@
+from enum import Enum
 from typing import Sequence
+
+from tortoise.transactions import in_transaction
 
 from app.notification.model import Notification, NotificationType
 from app.user.model import User
@@ -37,13 +40,37 @@ async def replace_notifications(
         notification_types: NotificationType id 리스트 (예: [1,2,3])
         using_db: 트랜잭션 연결 (서비스에서 in_transaction()으로 전달)
     """
-    # 기존 관계 제거
-    await user.fetch_related("notifications")
-    await user.notifications.clear(using_db)
+    # 1) 문자열 정규화 + 빈 값 제거
+    norm_names = []
+    for n in notification_types:
+        v = n.value if isinstance(n, Enum) else n
+        s = str(v).strip()
+        if s:
+            norm_names.append(s)
 
-    # 새 관계 추가
-    if notification_types:
-        # 해당 notification에 해당하는 notification id 조회
-        objs = await Notification.filter(notification_type__in=notification_types)
-        if objs:
-            await user.notifications.add(*objs, using_db)
+    # 관계만 깔끔히 재구축하고 싶다면 트랜잭션으로 감싸도 OK
+    async with in_transaction():
+        # 2) 기존 관계 제거
+        await user.fetch_related("notifications")
+        await user.notifications.clear()
+
+        if not norm_names:
+            return  # 더 할 일 없음
+
+        # 3) 이미 존재하는 것 조회
+        existing = await Notification.filter(notification_type__in=norm_names)
+        existing_names = {o.notification_type for o in existing}
+
+        # 4) 누락분 생성
+        missing_names = [n for n in norm_names if n not in existing_names]
+        if missing_names:
+            await Notification.bulk_create(
+                [Notification(name=n) for n in missing_names]
+            )
+
+        # 5) 최종 확정 세트 재조회(= 전부 '저장된' 객체)
+        final_objs = await Notification.filter(notification_type__in=norm_names)
+
+        # 6) 저장된 모델만 add (None 불가)
+        if final_objs:
+            await user.notifications.add(*final_objs)
