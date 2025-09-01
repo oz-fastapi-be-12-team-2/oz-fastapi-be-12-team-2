@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.diary.model import MainEmotion
+from app.diary.model import MainEmotionType
 from app.diary.schema import (
     DiaryCreate,
     DiaryListItem,
@@ -42,7 +42,7 @@ def _as_list_item(x: object) -> DiaryListItem:
 
     if isinstance(x, DiaryResponse):
         return DiaryListItem(
-            diary_id=x.diary_id,
+            id=x.id,
             user_id=x.user_id,
             title=x.title,
             main_emotion=x.main_emotion,
@@ -51,7 +51,7 @@ def _as_list_item(x: object) -> DiaryListItem:
 
     # ORM-like: duck typing
     return DiaryListItem(
-        diary_id=getattr(x, "id"),
+        id=getattr(x, "id"),
         user_id=getattr(x, "user_id"),
         title=getattr(x, "title"),
         main_emotion=getattr(x, "main_emotion", None),
@@ -111,7 +111,7 @@ async def get_diary(diary_id: int):
 async def list_diaries(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
     # ✅ Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
-    main_emotion: Optional[MainEmotion] = Query(
+    main_emotion: Optional[MainEmotionType] = Query(
         None, description="주요 감정 라벨로 필터링"
     ),
     date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
@@ -129,7 +129,7 @@ async def list_diaries(
         user_id=user_id,
         main_emotion=(
             main_emotion.value
-            if isinstance(main_emotion, MainEmotion)
+            if isinstance(main_emotion, MainEmotionType)
             else main_emotion
         ),
         date_from=date_from,
@@ -210,6 +210,5 @@ async def stats_summary(
             user_id=user_id,
             date_from=date_from,
             date_to=date_to,
-            inferred=inferred,
         )
     }

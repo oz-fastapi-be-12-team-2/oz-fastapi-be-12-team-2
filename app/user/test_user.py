@@ -68,9 +68,11 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
         # notif는 (obj, created) 튜플일 수 있으므로 obj만 꺼냄
         notif_obj = notif[0] if isinstance(notif, tuple) else notif
 
-        # 클라이언트에 시드 데이터 id 부착
-        ac._notification_id = notif_obj.id  # 타입 가벼운 주입
-        yield ac
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            # ✅ AsyncClient 인스턴스에 임시 속성으로 주입
+            setattr(ac, "_notification_id", notif_obj.id)
+            yield ac
 
     await Tortoise.close_connections()
 
@@ -81,7 +83,6 @@ async def test_signup_and_login(client: AsyncClient):
     - 회원가입 201
     - 로그인 200 및 토큰 2종
     """
-    notification_id = getattr(client, "_notification_id")
 
     # 회원가입
     resp = await client.post(
@@ -93,7 +94,7 @@ async def test_signup_and_login(client: AsyncClient):
             "username": "테스트유저",
             "phonenumber": "010-1234-5678",
             # 서버가 List[int]로 받도록 구현되어 있다면 이렇게 전달
-            "notification_types": [notification_id],
+            "notification_types": ["SMS"],
         },
     )
     assert resp.status_code in (200, 201)  # 라우터 설정에 따라 200/201 둘 다 허용
