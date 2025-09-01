@@ -2,10 +2,10 @@ import os
 import smtplib
 from datetime import date, datetime, time
 from email.mime.text import MIMEText
-from http.client import HTTPException
 from typing import List
 
 from dotenv import load_dotenv
+from fastapi import HTTPException
 from solapi import SolapiMessageService  # type: ignore
 from solapi.model import RequestMessage  # type: ignore
 
@@ -67,6 +67,10 @@ async def get_notification_targets() -> List[tuple[User, str, NotificationType]]
         user_notif = await UserNotification.get_or_none(
             user_id=user.id
         ).prefetch_related("notification")
+
+        if not user_notif or not user_notif.notification:
+            # 유저가 아직 알림 타입을 선택하지 않은 경우 → 건너뛰기
+            continue
 
         # 유저가 받을 알람 타입 결정
         notif_type = user_notif.notification.notification_type

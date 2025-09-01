@@ -1,28 +1,31 @@
+import uuid
+from datetime import date, datetime
 from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
 from app.diary.model import MainEmotionType
 from app.notification import service
 from app.notification.api import router as notification_router
-from app.notification.model import NotificationType
-from app.notification.service import send_notifications
-from app.user.model import EmotionStats, PeriodType, User
+from app.notification.model import Notification, NotificationType
+from app.notification.seed import seed_notifications
+from app.notification.service import get_notification_targets, send_notifications
+from app.user.model import EmotionStats, PeriodType, User, UserNotification
 
 pytestmark = pytest.mark.asyncio
 service.TEST_MODE = True
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def app() -> AsyncGenerator[FastAPI, None]:
     app = FastAPI(title="Test Notification API")
     app.include_router(notification_router)
 
-    # Tortoise 초기화
+    # Tortoise 초기화 (in-memory sqlite)
     await Tortoise.init(
         config={
             "connections": {"default": "sqlite://:memory:"},
@@ -30,9 +33,9 @@ async def app() -> AsyncGenerator[FastAPI, None]:
                 "models": {
                     "models": [
                         "app.user.model",
-                        "app.tag.model",
                         "app.diary.model",
                         "app.notification.model",
+                        "app.tag.model",
                         "aerich.models",
                     ],
                     "default_connection": "default",
@@ -43,112 +46,102 @@ async def app() -> AsyncGenerator[FastAPI, None]:
         }
     )
     await Tortoise.generate_schemas()
+
+    await seed_notifications()
+
     yield app
     await Tortoise.close_connections()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def client(app: FastAPI):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
 
-@pytest_asyncio.fixture(scope="session")
-async def test_user() -> AsyncGenerator[User, None]:
-    # 모든 테스트에서 공유할 유저 생성
+@pytest_asyncio.fixture
+async def test_user() -> User:
+    unique = uuid.uuid4().hex[:6]
     user = await User.create(
-        email="test@naver.com",
-        password="tester1234",
+        email=f"test_{unique}@example.com",
+        password="hashed_pw",
         username="테스터",
-        nickname="tester",
-        phonenumber="010-8393-9324",
+        nickname=f"tester_{unique}",
+        phonenumber="01012345678",
         receive_notifications=True,
-        notification_type=NotificationType.EMAIL.value,
-        push_token="dummy_token",
     )
-    yield user
+
+    # 조인 생성
+    weekday = date.today().weekday()
+    notif = await Notification.get(  # ✅ seed 데이터에서 가져오기
+        weekday=weekday,
+        notification_type=NotificationType.EMAIL,
+    )
+    await UserNotification.create(user=user, notification=notif)  # ✅ 조인 생성
+    return user
 
 
-@pytest_asyncio.fixture(scope="session")
-async def test_emotionstat(test_user: User) -> AsyncGenerator[EmotionStats, None]:
-    # 모든 테스트에서 공유할 유저 생성
-    emotionstat = await EmotionStats.create(
+@pytest_asyncio.fixture
+async def test_emotionstat(test_user: User) -> EmotionStats:
+    stat = await EmotionStats.create(
         user_id=test_user.id,
         period_type=PeriodType.WEEKLY.value,
         emotion_type=MainEmotionType.NEGATIVE.value,
-        type=MainEmotionType.NEGATIVE,
+        created_at=datetime.now(),
         frequency=5,
     )
-    yield emotionstat
+    return stat
 
 
-async def test_send_notifications(
+@pytest.mark.asyncio
+async def test_get_targets_and_send(
     client: AsyncClient, test_user: User, test_emotionstat: EmotionStats
 ):
-    notifications = await send_notifications()
-    assert notifications
-    assert notifications[0].content is not None
-    assert notifications[0].type == test_user.notifications.__getattribute__(
-        "notification_type"
-    )
-
-
-async def test_create_notification_endpoint(client: AsyncClient):
-    response = await client.post(
-        "/notifications/",
-        json={"content": "테스트 알림", "type": "PUSH"},
-    )
-    assert response.status_code == 200
+    # 1. 대상자 조회
+    response = await client.get("/notifications/targets")
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert "message" in data
+    assert "targets" in data
+    assert isinstance(data["targets"], list)
 
+    # 최소 1명 이상 대상자 있어야 함
+    assert any(t["user_id"] == test_user.id for t in data["targets"])
 
-async def test_get_notifications_endpoint(client: AsyncClient, test_user: User):
-    response = await client.get(f"/notifications/{test_user.id}")
-    assert response.status_code == 200
+    # 2. 발송
+    response = await client.post("/notifications/send")
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert isinstance(data, list)
+    assert "sent" in data
+    assert any(s["user_id"] == test_user.id for s in data["sent"])
 
 
-async def test_push_notification(
+@pytest.mark.asyncio
+async def test_notification_types(
     client: AsyncClient, test_user: User, test_emotionstat: EmotionStats, capsys
 ):
-    # notification_type을 PUSH로 변경
-    test_user.notification_type = NotificationType.PUSH
-    await test_user.save()
+    weekday = date.today().weekday()
 
-    payload = {"content": "푸쉬 테스트", "type": "PUSH"}
-    response = await client.post("/notifications/", json=payload)
+    for notif_type in [
+        NotificationType.PUSH,
+        NotificationType.SMS,
+        NotificationType.EMAIL,
+    ]:
+        # 마스터 알림 가져오기 (이미 seed 데이터에 있어야 함)
+        notif = await Notification.get(
+            weekday=weekday,
+            notification_type=notif_type,
+        )
 
-    assert response.status_code == 200
-    captured = capsys.readouterr()
-    assert "[PUSH]" in captured.out
+        # 유저-알람 연결 갱신
+        await UserNotification.update_or_create(
+            defaults={"notification": notif},
+            user=test_user,
+        )
 
+        # 대상자 조회 & 전송
+        targets = await get_notification_targets()
+        await send_notifications(targets)
 
-async def test_sms_notification(
-    client: AsyncClient, test_user: User, test_emotionstat: EmotionStats, capsys
-):
-    # notification_type을 SMS로 변경
-    test_user.notification_type = NotificationType.SMS
-    await test_user.save()
-
-    payload = {"content": "문자 테스트", "type": "SMS"}
-    response = await client.post("/notifications/", json=payload)
-    assert response.status_code == 200
-    captured = capsys.readouterr()
-    assert "[SMS]" in captured.out
-
-
-async def test_email_notification(
-    client: AsyncClient, test_user: User, test_emotionstat: EmotionStats, capsys
-):
-    # notification_type을 EMAIL로 변경
-    test_user.notification_type = NotificationType.EMAIL
-    await test_user.save()
-
-    payload = {"content": "이메일 테스트", "type": "EMAIL"}
-    response = await client.post("/notifications/", json=payload)
-    assert response.status_code == 200
-    captured = capsys.readouterr()
-    assert "[EMAIL]" in captured.out
+        captured = capsys.readouterr()
+        assert f"[{notif_type.value}]" in captured.out
