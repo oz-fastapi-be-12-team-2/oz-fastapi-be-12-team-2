@@ -11,8 +11,7 @@ from solapi.model import RequestMessage  # type: ignore
 
 from app.diary.model import MainEmotionType
 from app.notification import repository
-from app.notification.model import NotificationType, Notification
-from app.notification.repository import create_notification
+from app.notification.model import Notification, NotificationType
 from app.user.model import EmotionStats, PeriodType, User, UserNotification
 
 load_dotenv()
@@ -65,20 +64,21 @@ async def get_notification_targets() -> List[tuple[User, str, NotificationType]]
             continue
 
         # 유저-알람 조인 조회
-        user_notif = await UserNotification.get_or_none(user_id=user.id).prefetch_related("notification")
+        user_notif = await UserNotification.get_or_none(
+            user_id=user.id
+        ).prefetch_related("notification")
 
         # 유저가 받을 알람 타입 결정
         notif_type = user_notif.notification.notification_type
 
         # 오늘 요일 + 타입에 맞는 마스터 알람 찾기
         notif = await Notification.get_or_none(
-            weekday=weekday,
-            notification_type=notif_type
+            weekday=weekday, notification_type=notif_type
         )
         if not notif:
             raise HTTPException(
                 status_code=500,
-                detail=f"알람 마스터에 정의되지 않은 알림 (weekday={weekday}, type={notif_type})"
+                detail=f"알람 마스터에 정의되지 않은 알림 (weekday={weekday}, type={notif_type})",
             )
 
         if user_notif:
@@ -114,7 +114,7 @@ async def send_notifications(targets: list[tuple[User, str, NotificationType]]):
                 await send_sms(user, message)
             elif notif_type == NotificationType.EMAIL:
                 await send_email(user, message)
-        sent.append(user.id)
+        sent.append({"user_id": user.id, "nickname": user.nickname})
     return sent
 
 

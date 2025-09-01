@@ -176,7 +176,9 @@ class UserService:
         return current_user
 
     @staticmethod
-    async def update_notification_settings(current_user: User, notification_type: Optional[str], receive: bool) -> None:
+    async def update_notification_settings(
+        current_user: User, notification_type: Optional[str], receive: bool
+    ) -> None:
         """
         유저 알림 설정 수정
         - receive=False → 알림 모두 해제
@@ -191,7 +193,9 @@ class UserService:
 
         # 2) notification_type 필수 검증
         if not notification_type:
-            raise HTTPException(status_code=400, detail="notification_type은 필수입니다.")
+            raise HTTPException(
+                status_code=400, detail="notification_type은 필수입니다."
+            )
 
         # 3) Enum 값 검증
         allowed = {e.value for e in NotificationType}
@@ -204,7 +208,9 @@ class UserService:
         # 4) 오늘 요일 기반 알림 찾기
         today = date.today()
         weekday = today.weekday()
-        notif = await Notification.get_or_none(weekday=weekday, notification_type=notification_type)
+        notif = await Notification.get_or_none(
+            weekday=weekday, notification_type=notification_type
+        )
         if not notif:
             raise HTTPException(
                 status_code=500,
@@ -216,7 +222,9 @@ class UserService:
         if user_notif:
             user_notif.notification = notif  # ✅ relation 객체 갱신
             await user_notif.save()
-            print(f"🔄 UserNotification updated: user_id={current_user.id}, notif_id={notif.id}")
+            print(
+                f"🔄 UserNotification updated: user_id={current_user.id}, notif_id={notif.id}"
+            )
         else:
             created = await UserNotification.create(
                 user=current_user,
