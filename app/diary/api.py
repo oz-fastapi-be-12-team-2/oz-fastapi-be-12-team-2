@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import List, Optional
+from typing import List, Optional, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import (
@@ -73,6 +73,62 @@ def _as_list_item(x: object) -> DiaryListItem:
 
 
 # ---------------------------------------------------------------------
+# 권한 결정
+# ---------------------------------------------------------------------
+# 다이어리 리스트 조회 권한 설정
+def resolve_list_scope_or_raise(
+    *,
+    role: UserRole,
+    current_user_id: int,
+    user_id_param: Optional[int],
+) -> Optional[int]:
+    """다이어리 '목록' 조회 시 effective_user_id를 결정. 불가하면 403."""
+    if user_id_param is not None:
+        if role == UserRole.USER:
+            if user_id_param != current_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"{role} 권한은 본인 다이어리만 조회할 수 있습니다.",
+                )
+            return current_user_id
+        elif role in (UserRole.STAFF, UserRole.SUPERUSER):
+            return user_id_param
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="권한이 없습니다."
+            )
+    # user_id_param is None
+    if role == UserRole.SUPERUSER:
+        return None  # 전체 조회 허용
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"{role} 권한에서는 'user_id' 없이 조회할 수 없습니다. 예: /diaries?user_id=123",
+    )
+
+
+# 다이어리 단건 조회 권한 설정
+def ensure_can_read_diary_or_raise(
+    *, role: UserRole, current_user_id: int, diary_owner_id: int
+) -> None:
+    if role == UserRole.USER and current_user_id != diary_owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{role} 권한은 본인 다이어리만 조회할 수 있습니다.",
+        )
+
+
+# 다이어리 수정, 삭제 권한 설정
+def ensure_can_modify_diary_or_raise(
+    *, current_user_id: int, diary_owner_id: int
+) -> None:
+    if current_user_id != diary_owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인 다이어리만 수정/삭제할 수 있습니다.",
+        )
+
+
+# ---------------------------------------------------------------------
 # 다이어리 생성 API
 # POST /diaries
 # ---------------------------------------------------------------------
@@ -108,7 +164,7 @@ async def create_diary(
     response_model=DiaryResponse,
     response_model_exclude_none=True,
 )
-async def get_diary(diary_id: int):
+async def get_diary(diary_id: int, current_user: User = Depends(get_current_user)):
     """
     다이어리 단건 조회
     - Path Param: diary_id (조회할 다이어리 ID)
@@ -117,6 +173,14 @@ async def get_diary(diary_id: int):
     res = await DiaryService.get(diary_id)
     if not res:
         raise HTTPException(status_code=404, detail="Diary not found")
+    owner_id_opt: Optional[int] = getattr(res, "user_id", None)
+    owner_id = cast(int, owner_id_opt)
+    ensure_can_read_diary_or_raise(
+        role=current_user.user_roles,
+        current_user_id=current_user.id,
+        diary_owner_id=owner_id,
+    )
+
     return res
 
 
@@ -153,33 +217,11 @@ async def list_diaries(
     """
     # 1) 권한별 user scope 결정
     role = current_user.user_roles
-    effective_user_id: Optional[int]
-
-    if user_id is not None:
-        if role == UserRole.USER:
-            if user_id != current_user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"{role} 권한은 본인 다이어리만 조회할 수 있습니다.",
-                )
-            effective_user_id = current_user.id
-        elif role in (UserRole.STAFF, UserRole.SUPERUSER):
-            effective_user_id = user_id
-        else:
-            # 혹시 새로운 롤이 추가되는 경우 대비
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="권한이 없습니다.",
-            )
-    else:
-        # user_id 미지정
-        if role == UserRole.SUPERUSER:
-            effective_user_id = None  # 전체 조회
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"{role} 권한은 user_id 없이 조회할 수 없습니다.",
-            )
+    effective_user_id = resolve_list_scope_or_raise(
+        role=role,
+        current_user_id=current_user.id,
+        user_id_param=user_id,
+    )
 
     raw_items, total = await DiaryService.list(
         user_id=effective_user_id,
@@ -212,16 +254,27 @@ async def list_diaries(
     response_model=DiaryResponse,
     response_model_exclude_none=True,
 )
-async def update_diary(diary_id: int, payload: DiaryUpdate):
+async def update_diary(
+    diary_id: int, payload: DiaryUpdate, current_user: User = Depends(get_current_user)
+):
     """
     다이어리 수정 (부분 수정 가능)
     - Path Param: diary_id (수정할 다이어리 ID)
     - Request Body: DiaryUpdate (title, content, main_emotion 등 일부만 보내도 됨)
     - Response: 수정된 DiaryResponse
     """
-    res = await DiaryService.update(diary_id, payload)
-    if not res:
+    # 수정 전 소유자 확인
+    cur = await DiaryService.get(diary_id)
+    if not cur:
         raise HTTPException(status_code=404, detail="Diary not found")
+
+    owner_id_opt: Optional[int] = getattr(cur, "user_id", None)
+    owner_id = cast(int, owner_id_opt)
+    ensure_can_modify_diary_or_raise(
+        current_user_id=current_user.id, diary_owner_id=owner_id
+    )
+
+    res = await DiaryService.update(diary_id, payload)
     return res
 
 
@@ -230,16 +283,26 @@ async def update_diary(diary_id: int, payload: DiaryUpdate):
 # DELETE /diaries/{diary_id}
 # ---------------------------------------------------------------------
 @router.delete("/{diary_id}", status_code=204)
-async def delete_diary(diary_id: int):
+async def delete_diary(diary_id: int, current_user: User = Depends(get_current_user)):
     """
     다이어리 삭제
     - Path Param: diary_id (삭제할 다이어리 ID)
     - Response: 없음 (204 No Content)
     """
+    cur = await DiaryService.get(diary_id)
+    if not cur:
+        raise HTTPException(status_code=404, detail="Diary not found")
+
+    diary_owner_id = getattr(cur, "user_id", None)
+    owner_id = cast(int, diary_owner_id)
+
+    ensure_can_modify_diary_or_raise(
+        current_user_id=current_user.id, diary_owner_id=owner_id
+    )
+
     ok = await DiaryService.delete(diary_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Diary not found")
-    # FastAPI는 204에서 본문을 무시하므로 명시적으로 None 반환
     return None
 
 
