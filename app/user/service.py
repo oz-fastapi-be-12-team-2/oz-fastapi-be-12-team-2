@@ -1,10 +1,10 @@
-from typing import Optional, Sequence, Tuple, cast
+from enum import Enum
+from typing import Optional, Tuple
 
 from fastapi import HTTPException
 from tortoise.transactions import in_transaction
 
 from app.notification import repository
-from app.notification.model import NotificationType
 from app.user.auth import create_access_token, create_refresh_token
 from app.user.model import User
 from app.user.schema import UserCreate, UserLogin, UserUpdate
@@ -34,7 +34,7 @@ class UserService:
         - 사용자 생성
         - notification_types가 있으면 연결 갱신
         """
-        async with in_transaction() as conn:
+        async with in_transaction():
             # 사용자 생성 (동일 트랜잭션 사용)
             user = await User.create(
                 email=payload.email,
@@ -42,17 +42,14 @@ class UserService:
                 nickname=payload.nickname,
                 username=payload.username,
                 phonenumber=payload.phonenumber,
-                using_db=conn,
             )
 
-            # payload 안에 notification_types가 있으면 연결 생성/치환
-            notification_types = payload.notification_types
-            if notification_types is not None:
-                await repository.replace_notifications(  # ← 함수명만 교체
-                    user,
-                    cast(Sequence[NotificationType], notification_types),
-                    using_db=conn,  # ← 변수 재사용
-                )
+            types = payload.notification_types
+            print("user.service.types", types)
+            if types is not None:
+                names = [t.value if isinstance(t, Enum) else str(t) for t in types]
+                print("user.service.names", names)
+                await repository.replace_notifications(user, names)
 
         return user
 

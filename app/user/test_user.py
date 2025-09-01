@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
+from app.notification.model import NotificationType
 from app.user.api import router as user_router
 from app.user.model import User
 from app.user.utils import hash_password
@@ -40,9 +41,8 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
                     "models": [
                         "app.user.model",  # User, EmotionStats, UserNotification
                         "app.notification.model",  # Notification
-                        # 필요하다면 여기에 추가 모델들:
-                        # "app.diary.model",
-                        # "app.tag.model",
+                        "app.diary.model",
+                        "app.tag.model",
                         "aerich.models",
                     ],
                     "default_connection": "default",
@@ -52,27 +52,21 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
             "timezone": "Asia/Seoul",
         }
     )
+
     await Tortoise.generate_schemas()
+
+    from app.notification.model import Notification
+
+    await Notification.get_or_create(
+        notification_type="SMS", defaults={"is_enabled": True}
+    )
+    await Notification.get_or_create(
+        notification_type="EMAIL", defaults={"is_enabled": True}
+    )
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        # 테스트에서 사용할 공용 시드 데이터 준비
-        # Notification이 필요한 경우 여기서 만들어두고 id 반환받아 사용
-        # 만약 NotificationType으로 바꿨다면 해당 모델로 변경
-        from app.notification.model import Notification
-
-        # 중복 방지: name 유니크라 가드
-        notif = await Notification.get_or_create(
-            name="SMS", defaults={"is_enabled": True}
-        )
-        # notif는 (obj, created) 튜플일 수 있으므로 obj만 꺼냄
-        notif_obj = notif[0] if isinstance(notif, tuple) else notif
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
-            # ✅ AsyncClient 인스턴스에 임시 속성으로 주입
-            setattr(ac, "_notification_id", notif_obj.id)
-            yield ac
+        yield ac
 
     await Tortoise.close_connections()
 
@@ -93,8 +87,7 @@ async def test_signup_and_login(client: AsyncClient):
             "nickname": "tester",
             "username": "테스트유저",
             "phonenumber": "010-1234-5678",
-            # 서버가 List[int]로 받도록 구현되어 있다면 이렇게 전달
-            "notification_types": ["SMS"],
+            "notification_types": [NotificationType.SMS],
         },
     )
     assert resp.status_code in (200, 201)  # 라우터 설정에 따라 200/201 둘 다 허용

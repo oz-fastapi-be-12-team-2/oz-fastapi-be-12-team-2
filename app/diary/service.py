@@ -149,17 +149,15 @@ class DiaryService:
         ai = _resolve_ai()
 
         # 1) 생성 + 관계 저장
-        async with in_transaction() as conn:
-            diary: Diary = await repository.create(payload, using_db=conn)
+        async with in_transaction():
+            diary: Diary = await repository.create(payload)
 
             if payload.tags:
                 # 레포지토리 시그니처에 맞춰 전달 (TagIn 리스트 or 이름 리스트)
-                await repository.replace_tags(diary, payload.tags, using_db=conn)
+                await repository.replace_tags(diary, payload.tags)
 
             if payload.image_urls:
-                await repository.replace_images(
-                    diary, payload.image_urls, using_db=conn
-                )
+                await repository.replace_images(diary, payload.image_urls)
 
         # 3) 커밋 이후 AI 분석
         ai_result = None

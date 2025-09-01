@@ -25,7 +25,7 @@ async def get_notifications_for_user(user_id: int) -> list[Notification]:
 
 async def replace_notifications(
     user: User,
-    notification_types: Sequence[NotificationType],
+    notification_types: Sequence[str],
     using_db=None,
 ) -> None:
     """
@@ -38,11 +38,12 @@ async def replace_notifications(
         using_db: 트랜잭션 연결 (서비스에서 in_transaction()으로 전달)
     """
     # 기존 관계 제거
-    await user.fetch_related("notifications", using_db)
+    await user.fetch_related("notifications")
     await user.notifications.clear(using_db)
 
     # 새 관계 추가
     if notification_types:
-        objs = await Notification.filter(id__in=notification_types)
+        # 해당 notification에 해당하는 notification id 조회
+        objs = await Notification.filter(notification_type__in=notification_types)
         if objs:
             await user.notifications.add(*objs, using_db)
