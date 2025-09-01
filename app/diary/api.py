@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Optional
+from typing import Annotated, List, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import (
+    APIRouter,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 
 from app.diary.model import MainEmotionType
 from app.diary.schema import (
@@ -16,6 +24,7 @@ from app.diary.schema import (
     PageMeta,
 )
 from app.diary.service import DiaryService
+from app.files.service import CloudinaryService
 
 # ---------------------------------------------------------------------
 # 다이어리 API 라우터
@@ -43,7 +52,7 @@ def _as_list_item(x: object) -> DiaryListItem:
 
     if isinstance(x, DiaryResponse):
         return DiaryListItem(
-            diary_id=x.diary_id,
+            id=x.id,
             user_id=x.user_id,
             title=x.title,
             main_emotion=x.main_emotion,
@@ -52,7 +61,7 @@ def _as_list_item(x: object) -> DiaryListItem:
 
     # ORM-like: duck typing
     return DiaryListItem(
-        diary_id=getattr(x, "id"),
+        id=getattr(x, "id"),
         user_id=getattr(x, "user_id"),
         title=getattr(x, "title"),
         main_emotion=getattr(x, "main_emotion", None),
@@ -60,22 +69,39 @@ def _as_list_item(x: object) -> DiaryListItem:
     )
 
 
+def _merge_unique(a: Optional[List[str]], b: Optional[List[str]]) -> List[str]:
+    out, seen = [], set()
+    for src in (a or []), (b or []):
+        for u in src:
+            s = (u or "").strip()
+            if s and s not in seen:
+                seen.add(s)
+                out.append(s)
+    return out
+
+
 # ---------------------------------------------------------------------
 # 다이어리 생성 API
 # POST /diaries
 # ---------------------------------------------------------------------
-@router.post(
-    "",
-    response_model=DiaryResponse,
-    status_code=201,
-    # response_model_exclude_none=True,
-)
-async def create_diary(payload: DiaryCreate):
-    """
-    다이어리 생성
-    - Request Body: DiaryCreate (title, content, user_id, tags, images 등)
-    - Response: 생성된 다이어리 전체 정보 (DiaryResponse)
-    """
+@router.post("", response_model=DiaryResponse, status_code=201)
+async def create_diary(
+    payload_json: Annotated[str, Form(...)],
+    image_files: Annotated[Optional[List[UploadFile]], File()] = None,
+):
+    # 1) JSON 파싱
+    try:
+        payload = DiaryCreate.model_validate_json(payload_json)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"payload_json 파싱 실패: {e}")
+
+    # 2) 파일 업로드 → URL
+    uploaded_urls = await CloudinaryService.upload_images_to_urls(image_files)
+
+    # 3) 업로드 URL 저장 (순서 보존/중복 제거)
+    payload.image_urls = uploaded_urls
+
+    # 4) 서비스 호출(AI는 주입되면 사용, 없으면 자동 스킵)
     return await DiaryService.create(payload)
 
 
@@ -155,15 +181,39 @@ async def list_diaries(
     "/{diary_id}",
     response_model=DiaryResponse,
     response_model_exclude_none=True,
+    status_code=status.HTTP_200_OK,  # PATCH는 200
 )
-async def update_diary(diary_id: int, payload: DiaryUpdate):
-    """
-    다이어리 수정 (부분 수정 가능)
-    - Path Param: diary_id (수정할 다이어리 ID)
-    - Request Body: DiaryUpdate (title, content, main_emotion 등 일부만 보내도 됨)
-    - Response: 수정된 DiaryResponse
-    """
-    res = await DiaryService.update(diary_id, payload)
+async def update_diary(
+    diary_id: int,
+    payload_json: Annotated[str, Form(...)],  # 필수(멀티파트 전용)
+    image_files: Annotated[
+        Optional[List[UploadFile]], File()
+    ] = None,  # 선택(없어도 멀티파트 OK)
+):
+    # 1) JSON 파싱 (부분수정 스키마)
+    try:
+        patch = DiaryUpdate.model_validate_json(payload_json)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"payload_json 파싱 실패: {e}")
+
+    # 2) 파일 업로드(있을 때만)
+    uploaded = await CloudinaryService.upload_images_to_urls(image_files)
+
+    # 3) 이미지 반영 규칙
+    #    - patch.image_urls가 오면: 그 값으로 '교체'
+    #    - patch.image_urls가 비었고, 업로드가 있으면: 업로드로 '교체'
+    #    - 둘 다 없으면: 이미지 '유지'
+    if patch.image_urls is not None:
+        # 클라이언트가 명시적으로 보낸 URL로 교체(업로드 있으면 병합하고 싶으면 아래로 교체)
+        patch.image_urls = (
+            _merge_unique(patch.image_urls, uploaded) if uploaded else patch.image_urls
+        )
+    elif uploaded:
+        patch.image_urls = uploaded  # 업로드만 온 경우 교체
+    # else: None → 서비스에서 이미지 유지
+
+    # 4) 서비스로 위임(보낸 필드만 부분 업데이트)
+    res = await DiaryService.update(diary_id, patch)
     if not res:
         raise HTTPException(status_code=404, detail="Diary not found")
     return res
