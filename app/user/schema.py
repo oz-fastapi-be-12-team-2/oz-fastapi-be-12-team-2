@@ -13,8 +13,8 @@ class UserCreate(BaseModel):
     phonenumber: Annotated[
         str, Field(pattern=r"^010-\d{4}-\d{4}$")
     ]  # 010-0000-0000 형식
-    receive_notifications: bool
-    notification_type: str
+    receive_notifications: bool = True
+    notification_type: str = "EMAIL"    # 기본값 EMAIL
 
 
 # 로그인 요청 시 스키마
