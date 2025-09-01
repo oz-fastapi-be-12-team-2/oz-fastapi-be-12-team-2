@@ -74,13 +74,13 @@ class EmotionStats(Model):
 class UserNotification(Model):
     id = fields.IntField(pk=True)  # ✅ 명시 PK 추가(권장)
 
-    user = fields.ForeignKeyField(
+    user: fields.ForeignKeyRelation["User"] = fields.ForeignKeyField(
         "models.User",
         related_name="user_notifications",
         on_delete=fields.CASCADE,
         index=True,
     )
-    notification = fields.ForeignKeyField(
+    notification: fields.ForeignKeyRelation["Notification"] = fields.ForeignKeyField(
         "models.Notification",
         related_name="user_notifications",
         on_delete=fields.CASCADE,
@@ -94,4 +94,4 @@ class UserNotification(Model):
         indexes = (("user", "notification"),)
 
     def __str__(self) -> str:
-        return f"UserNotification(user_id={self.user_id}, notification_id={self.notification_id})"
+        return f"UserNotification(user_id={self.user.id}, notification_id={self.notification.id})"

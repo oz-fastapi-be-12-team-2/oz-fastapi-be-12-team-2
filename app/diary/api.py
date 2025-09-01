@@ -1,20 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
-from typing import Annotated, List, Optional
-from zoneinfo import ZoneInfo
+from datetime import datetime
+from typing import Optional
 
-from fastapi import (
-    APIRouter,
-    File,
-    Form,
-    HTTPException,
-    Query,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, HTTPException, Query
 
-from app.diary.model import MainEmotionType
+from app.diary.model import MainEmotion
 from app.diary.schema import (
     DiaryCreate,
     DiaryListItem,
@@ -24,7 +15,6 @@ from app.diary.schema import (
     PageMeta,
 )
 from app.diary.service import DiaryService
-from app.files.service import CloudinaryService
 
 # ---------------------------------------------------------------------
 # 다이어리 API 라우터
@@ -52,7 +42,7 @@ def _as_list_item(x: object) -> DiaryListItem:
 
     if isinstance(x, DiaryResponse):
         return DiaryListItem(
-            id=x.id,
+            diary_id=x.diary_id,
             user_id=x.user_id,
             title=x.title,
             main_emotion=x.main_emotion,
@@ -61,7 +51,7 @@ def _as_list_item(x: object) -> DiaryListItem:
 
     # ORM-like: duck typing
     return DiaryListItem(
-        id=getattr(x, "id"),
+        diary_id=getattr(x, "id"),
         user_id=getattr(x, "user_id"),
         title=getattr(x, "title"),
         main_emotion=getattr(x, "main_emotion", None),
@@ -69,39 +59,22 @@ def _as_list_item(x: object) -> DiaryListItem:
     )
 
 
-def _merge_unique(a: Optional[List[str]], b: Optional[List[str]]) -> List[str]:
-    out, seen = [], set()
-    for src in (a or []), (b or []):
-        for u in src:
-            s = (u or "").strip()
-            if s and s not in seen:
-                seen.add(s)
-                out.append(s)
-    return out
-
-
 # ---------------------------------------------------------------------
 # 다이어리 생성 API
 # POST /diaries
 # ---------------------------------------------------------------------
-@router.post("", response_model=DiaryResponse, status_code=201)
-async def create_diary(
-    payload_json: Annotated[str, Form(...)],
-    image_files: Annotated[Optional[List[UploadFile]], File()] = None,
-):
-    # 1) JSON 파싱
-    try:
-        payload = DiaryCreate.model_validate_json(payload_json)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"payload_json 파싱 실패: {e}")
-
-    # 2) 파일 업로드 → URL
-    uploaded_urls = await CloudinaryService.upload_images_to_urls(image_files)
-
-    # 3) 업로드 URL 저장 (순서 보존/중복 제거)
-    payload.image_urls = uploaded_urls
-
-    # 4) 서비스 호출(AI는 주입되면 사용, 없으면 자동 스킵)
+@router.post(
+    "",
+    response_model=DiaryResponse,
+    status_code=201,
+    # response_model_exclude_none=True,
+)
+async def create_diary(payload: DiaryCreate):
+    """
+    다이어리 생성
+    - Request Body: DiaryCreate (title, content, user_id, tags, images 등)
+    - Response: 생성된 다이어리 전체 정보 (DiaryResponse)
+    """
     return await DiaryService.create(payload)
 
 
@@ -122,7 +95,7 @@ async def get_diary(diary_id: int):
     """
     res = await DiaryService.get(diary_id)
     if not res:
-        raise HTTPException(status_code=404, detail="존재하지않는 다이어리입니다.")
+        raise HTTPException(status_code=404, detail="Diary not found")
     return res
 
 
@@ -137,8 +110,8 @@ async def get_diary(diary_id: int):
 )
 async def list_diaries(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
-    # Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
-    main_emotion: Optional[MainEmotionType] = Query(
+    # ✅ Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
+    main_emotion: Optional[MainEmotion] = Query(
         None, description="주요 감정 라벨로 필터링"
     ),
     date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
@@ -151,11 +124,12 @@ async def list_diaries(
     - Query Params: user_id, main_emotion, date_from, date_to, page, page_size
     - Response: DiaryListResponse (items[list[DiaryListItem]] + meta)
     """
+    # Service 결과는 구현에 따라 ORM / DiaryResponse / DiaryListItem 등일 수 있음
     raw_items, total = await DiaryService.list(
         user_id=user_id,
         main_emotion=(
             main_emotion.value
-            if isinstance(main_emotion, MainEmotionType)
+            if isinstance(main_emotion, MainEmotion)
             else main_emotion
         ),
         date_from=date_from,
@@ -181,39 +155,15 @@ async def list_diaries(
     "/{diary_id}",
     response_model=DiaryResponse,
     response_model_exclude_none=True,
-    status_code=status.HTTP_200_OK,  # PATCH는 200
 )
-async def update_diary(
-    diary_id: int,
-    payload_json: Annotated[str, Form(...)],  # 필수(멀티파트 전용)
-    image_files: Annotated[
-        Optional[List[UploadFile]], File()
-    ] = None,  # 선택(없어도 멀티파트 OK)
-):
-    # 1) JSON 파싱 (부분수정 스키마)
-    try:
-        patch = DiaryUpdate.model_validate_json(payload_json)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"payload_json 파싱 실패: {e}")
-
-    # 2) 파일 업로드(있을 때만)
-    uploaded = await CloudinaryService.upload_images_to_urls(image_files)
-
-    # 3) 이미지 반영 규칙
-    #    - patch.image_urls가 오면: 그 값으로 '교체'
-    #    - patch.image_urls가 비었고, 업로드가 있으면: 업로드로 '교체'
-    #    - 둘 다 없으면: 이미지 '유지'
-    if patch.image_urls is not None:
-        # 클라이언트가 명시적으로 보낸 URL로 교체(업로드 있으면 병합하고 싶으면 아래로 교체)
-        patch.image_urls = (
-            _merge_unique(patch.image_urls, uploaded) if uploaded else patch.image_urls
-        )
-    elif uploaded:
-        patch.image_urls = uploaded  # 업로드만 온 경우 교체
-    # else: None → 서비스에서 이미지 유지
-
-    # 4) 서비스로 위임(보낸 필드만 부분 업데이트)
-    res = await DiaryService.update(diary_id, patch)
+async def update_diary(diary_id: int, payload: DiaryUpdate):
+    """
+    다이어리 수정 (부분 수정 가능)
+    - Path Param: diary_id (수정할 다이어리 ID)
+    - Request Body: DiaryUpdate (title, content, main_emotion 등 일부만 보내도 됨)
+    - Response: 수정된 DiaryResponse
+    """
+    res = await DiaryService.update(diary_id, payload)
     if not res:
         raise HTTPException(status_code=404, detail="Diary not found")
     return res
@@ -244,53 +194,22 @@ async def delete_diary(diary_id: int):
 @router.get("/stats/summary", response_model_exclude_none=True)
 async def stats_summary(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
-    date_from: Optional[date] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
-    date_to: Optional[date] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
+    date_from: Optional[datetime] = Query(None, description="조회 시작일"),
+    date_to: Optional[datetime] = Query(None, description="조회 종료일"),
+    inferred: bool = Query(
+        True, description="True: main_emotion 미지정 시 emotion_analysis로 추론"
+    ),
 ):
     """
     감정 통계 요약
-    - Query Params: user_id, date_from, date_to
-    - user_id 지정 시 해당 사용자의 통계, 미지정 시 전체 사용자 대상
-    - date_from/to 지정 시 해당 기간 내 일기만 집계, 미지정 시 전체 기간
+    - Query Params: user_id, date_from, date_to, inferred
     - Response: 감정별 카운트 딕셔너리 (예: {"긍정": 3, "부정": 1, "중립": 2})
     """
-
     return {
         "items": await DiaryService.emotion_stats(
             user_id=user_id,
             date_from=date_from,
             date_to=date_to,
-        )
-    }
-
-
-@router.get("/stats/daily", response_model_exclude_none=True)
-async def stats_daily(
-    user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
-    date_to: Optional[date] = Query(None, description="조회 기준일 (YYYY-MM-DD)"),
-    days: int = Query(7, ge=1, le=365, description="최근 N일 (기본 7, 오늘 포함)"),
-):
-    """
-    - date_to가 주어지면: [date_to - (days-1) ~ date_to] 범위 일간
-    - date_to가 없으면: 타임존 기준 오늘을 date_to로 사용
-    - user_id 미지정 시 전체 사용자 기준
-    - 반환: {"period":"daily","from":YYYY-MM-DD,"to":YYYY-MM-DD,"items":[...]}
-    """
-    zone = ZoneInfo("Asia/Seoul")
-
-    # 기준일 결정(없으면 타임존 기준 오늘)
-    today = datetime.now(zone).date()
-    to_d = date_to or today
-    from_d = to_d - timedelta(days=days - 1)
-
-    # 날짜 → [00:00, 다음날 00:00) (타임존 포함)로 변환
-    dt_from = datetime.combine(from_d, time.min).replace(tzinfo=zone)
-    dt_to = datetime.combine(to_d + timedelta(days=1), time.min).replace(tzinfo=zone)
-
-    return {
-        "items": await DiaryService.emotion_stats(
-            user_id=user_id,
-            date_from=dt_from,
-            date_to=dt_to,
+            inferred=inferred,
         )
     }
