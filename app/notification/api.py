@@ -9,7 +9,7 @@ from app.notification.schema import (
     NotificationResponse,
     UserNotificationResponse,
 )
-from app.notification.service import list_notifications, send_notifications
+from app.notification.service import list_notifications, send_notifications, get_notification_targets
 from app.user.model import UserNotification
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -23,15 +23,40 @@ async def get_notifications():
     return await list_notifications()
 
 
-@router.post("/", response_model=dict)
-async def create_notification_endpoint(req: NotificationCreateRequest):
+@router.get("/targets")
+async def list_notification_targets():
     """
-    알림 생성 (receive_notifications=True 사용자 자동 선택)
+    발송 대상자 조회 (알림 없으면 생성/갱신 후 반환)
     """
-    notification = await send_notifications()
-    if notification is None:
-        return {"message": "알림 발송 대상이 없습니다."}
-    return {"message": f"{len(notification)}명에게 알림 발송 완료"}
+    targets = await get_notification_targets()
+    if not targets:
+        return {"message": "📭 발송 대상 없음", "targets": []}
+
+    # 직렬화 가능한 데이터로 변환
+    result = [
+        {
+            "user_id": user.id,
+            "nickname": user.nickname,
+            "notification_type": notif_type,
+            "message": message,
+        }
+        for (user, message, notif_type) in targets
+    ]
+    return {"count": len(result), "targets": result}
+
+
+@router.post("/send")
+async def send_notifications_endpoint():
+    """
+    실제 알림 발송
+    """
+    targets = await get_notification_targets()
+    if not targets:
+        return {"message": "📭 발송 대상 없음", "sent": []}
+
+    sent = await send_notifications(targets)
+    count = len(sent)
+    return {"message": f"✅ {count}명에게 알림 발송 완료", "sent": sent}
 
 
 @router.get("/users", response_model=List[UserNotificationResponse])
