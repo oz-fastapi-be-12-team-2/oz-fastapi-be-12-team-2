@@ -176,9 +176,6 @@ class DiaryService:
                     await repository.update_partially(
                         diary,
                         {
-                            "main_emotion": _norm_emotion(
-                                getattr(ai_result, "main_emotion", None)
-                            ),
                             "emotion_analysis_report": to_dict(ai_result),
                         },
                     )

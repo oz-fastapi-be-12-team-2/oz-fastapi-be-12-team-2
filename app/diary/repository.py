@@ -74,7 +74,7 @@ async def list_by_filters(
     - 필터(user_id, main_emotion, 기간)를 적용해서 페이징 처리
     - created_at DESC 정렬
     """
-    qs = Diary.all().prefetch_related("tags", "images", "user")
+    qs = Diary.all().prefetch_related("tags", "images", "users")
 
     # 조건 필터링
     if user_id is not None:

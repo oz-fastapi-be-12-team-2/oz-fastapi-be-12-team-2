@@ -67,17 +67,17 @@ class Diary(TimestampMixin, Model):
         "models.User", related_name="diaries", on_delete=fields.CASCADE
     )
     images: fields.ReverseRelation["Image"]
-    tags: fields.ManyToManyRelation[Tag] = fields.ManyToManyField(
+    tags: fields.ManyToManyRelation["Tag"] = fields.ManyToManyField(
         "models.Tag",
-        related_name="diaries",
-        through="diary_tag",  # 아래 DiaryTag 모델의 table 명과 일치해야 함
+        related_name="diaries",  # Tag → diaries 로 접근
+        through="models.DiaryTag",
     )
 
     class Meta:
         table = "diaries"
 
     def __str__(self):
-        return f"Diary(id={self.id}, title={self.title}, emotion_analysis_report={self.emotion_analysis_report})"
+        return f"title={self.title}, emotion_analysis_report={self.emotion_analysis_report})"
 
 
 # ---------------------------------------------------------------------
@@ -93,8 +93,11 @@ class Image(Model):
     order = fields.IntField(null=False, index=True)
     url = fields.TextField(null=False)
 
-    diary: fields.ForeignKeyRelation[Diary] = fields.ForeignKeyField(
-        "models.Diary", related_name="images", on_delete=fields.CASCADE
+    diary: fields.ForeignKeyRelation["Diary"] = fields.ForeignKeyField(
+        "models.Diary",
+        related_name="images",
+        on_delete=fields.CASCADE,
+        db_index=True,
     )
 
     class Meta:
@@ -102,8 +105,8 @@ class Image(Model):
         # 같은 다이어리에서 동일 order 중복 방지
         unique_together = (("diary_id", "order"),)
 
-    def __str__(self) -> str:
-        return f"Image(id={self.id}, diary_id={self.diary.id}, order={self.order})"
+    # def __str__(self) -> str:
+    #     return f"Image(id={self.id}, diary_id={self.diary.id}, order={self.order})"
 
 
 # ---------------------------------------------------------------------
@@ -119,15 +122,17 @@ class DiaryTag(Model):
     """
 
     id = fields.IntField(pk=True, generated=True)
-    diary: fields.ForeignKeyRelation[Diary] = fields.ForeignKeyField(
+    diary: fields.ForeignKeyRelation["Diary"] = fields.ForeignKeyField(
         "models.Diary",
-        related_name="diarytag_links",  # 내부 관리용 역참조 이름
+        related_name="diary_tags",
         on_delete=fields.CASCADE,
+        db_index=True,
     )
-    tag: fields.ForeignKeyRelation[Tag] = fields.ForeignKeyField(
+    tag: fields.ForeignKeyRelation["Tag"] = fields.ForeignKeyField(
         "models.Tag",
-        related_name="diarytag_links",  # 내부 관리용 역참조 이름
+        related_name="diary_tags",
         on_delete=fields.CASCADE,
+        db_index=True,
     )
 
     class Meta:
@@ -135,5 +140,5 @@ class DiaryTag(Model):
         unique_together = (("diary", "tag"),)
         indexes = (("diary", "tag"),)
 
-    def __str__(self) -> str:
-        return f"DiaryTag(diary_id={self.diary.id}, tag_id={self.tag.id})"
+    # def __str__(self) -> str:
+    #     return f"DiaryTag(diary_id={self.diary.id}, tag_id={self.tag.id})"

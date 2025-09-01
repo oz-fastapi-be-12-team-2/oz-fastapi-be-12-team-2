@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.diary.model import MainEmotionType
 from app.diary.schema import (
@@ -15,6 +15,9 @@ from app.diary.schema import (
     PageMeta,
 )
 from app.diary.service import DiaryService
+from app.files.service import CloudinaryService
+from app.user.auth import get_current_user
+from app.user.model import User
 
 # ---------------------------------------------------------------------
 # 다이어리 API 라우터
@@ -63,18 +66,24 @@ def _as_list_item(x: object) -> DiaryListItem:
 # 다이어리 생성 API
 # POST /diaries
 # ---------------------------------------------------------------------
-@router.post(
-    "",
-    response_model=DiaryResponse,
-    status_code=201,
-    # response_model_exclude_none=True,
-)
-async def create_diary(payload: DiaryCreate):
-    """
-    다이어리 생성
-    - Request Body: DiaryCreate (title, content, user_id, tags, images 등)
-    - Response: 생성된 다이어리 전체 정보 (DiaryResponse)
-    """
+@router.post("", response_model=DiaryResponse, status_code=201)
+async def create_diary(
+    title: str = Form(...),
+    content: str = Form(...),
+    tags: Optional[List[str]] = Form(None),  # Form으로 받아야 multipart 노출됨
+    images: Optional[List[UploadFile]] = File(None),
+    current_user: User = Depends(get_current_user),
+):
+    image_urls = await CloudinaryService.upload_images_to_urls(images)
+
+    payload = DiaryCreate(
+        user_id=current_user.id,
+        emotion_analysis_report=None,
+        title=title,
+        content=content,
+        tags=tags or [],
+        image_urls=image_urls,
+    )
     return await DiaryService.create(payload)
 
 
