@@ -1,7 +1,12 @@
 from typing import List
 
 from app.tag.repository import TagRepository
-from app.tag.schema import PopularTagsResponse, TagResponse, TagSearchResponse, TagWithCountResponse
+from app.tag.schema import (
+    PopularTagsResponse,
+    TagResponse,
+    TagSearchResponse,
+    TagWithCountResponse,
+)
 
 
 class TagService:
@@ -24,10 +29,7 @@ class TagService:
         tags = await TagRepository.search_tags(query, limit)
         tag_responses = [TagResponse.model_validate(tag) for tag in tags]
 
-        return TagSearchResponse(
-            tags=tag_responses,
-            total=len(tag_responses)
-        )
+        return TagSearchResponse(tags=tag_responses, total=len(tag_responses))
 
     @staticmethod
     async def get_popular_tags(limit: int = 10) -> PopularTagsResponse:
@@ -38,7 +40,7 @@ class TagService:
             TagWithCountResponse(
                 tag_id=item["tag_id"],
                 tag_name=item["tag_name"],
-                diary_count=item["diary_count"]
+                diary_count=item["diary_count"],
             )
             for item in popular_data
         ]
@@ -46,7 +48,9 @@ class TagService:
         return PopularTagsResponse(tags=tags)
 
     @staticmethod
-    async def get_user_tags(user_id: int, limit: int = 50) -> List[TagWithCountResponse]:
+    async def get_user_tags(
+        user_id: int, limit: int = 50
+    ) -> List[TagWithCountResponse]:
         """사용자의 태그 사용 이력"""
         user_tag_data = await TagRepository.get_user_tags(user_id, limit)
 
@@ -54,7 +58,7 @@ class TagService:
             TagWithCountResponse(
                 tag_id=item["tag_id"],
                 tag_name=item["tag_name"],
-                diary_count=item["usage_count"]
+                diary_count=item["usage_count"],
             )
             for item in user_tag_data
         ]

@@ -9,11 +9,11 @@ class TagBase(BaseModel):
 
 class TagCreate(TagBase):
     """태그 생성 요청"""
-    pass
 
 
 class TagResponse(TagBase):
     """태그 응답"""
+
     tag_id: int
 
     class Config:
@@ -22,15 +22,18 @@ class TagResponse(TagBase):
 
 class TagWithCountResponse(TagResponse):
     """사용 횟수가 포함된 태그 응답"""
+
     diary_count: int = Field(0, description="이 태그를 사용한 일기 수")
 
 
 class TagSearchResponse(BaseModel):
     """태그 검색 응답"""
+
     tags: List[TagResponse]
     total: int
 
 
 class PopularTagsResponse(BaseModel):
     """인기 태그 응답"""
+
     tags: List[TagWithCountResponse]

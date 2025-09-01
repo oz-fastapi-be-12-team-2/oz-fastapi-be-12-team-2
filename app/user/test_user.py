@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient
-from app.main import app
+
 from app.user.model import User
 from app.user.utils import hash_password
 
@@ -47,7 +47,7 @@ async def test_get_profile(async_client: AsyncClient):
     # 로그인해서 토큰 받기
     resp = await async_client.post(
         "/users/login",
-        json={"email": "profile@example.com", "password": "password123"},
+        json=user,
     )
     tokens = resp.json()
     access_token = tokens["access_token"]
@@ -76,7 +76,7 @@ async def test_update_profile(async_client: AsyncClient):
     # 로그인
     resp = await async_client.post(
         "/users/login",
-        json={"email": "update@example.com", "password": "password123"},
+        json=user,
     )
     tokens = resp.json()
     access_token = tokens["access_token"]
@@ -106,7 +106,7 @@ async def test_delete_user(async_client: AsyncClient):
     # 로그인
     resp = await async_client.post(
         "/users/login",
-        json={"email": "delete@example.com", "password": "password123"},
+        json=user,
     )
     tokens = resp.json()
     access_token = tokens["access_token"]

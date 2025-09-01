@@ -1,9 +1,11 @@
 import os
+
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+from tortoise.contrib.test import finalizer, initializer
+
 from app.main import app
-from tortoise.contrib.test import initializer, finalizer
 
 
 @pytest.fixture(scope="module", autouse=True)

@@ -44,7 +44,8 @@ def set_tokens_in_cookies(response: Response, access_token: str, refresh_token: 
     )
     return response
 
-#유저 반환 개선(확인필요)
+
+# 유저 반환 개선(확인필요)
 async def get_current_user(request: Request):
     token = request.cookies.get("access_token")
     if not token:

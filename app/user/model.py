@@ -63,6 +63,5 @@ class EmotionStats(Model):
     frequency = fields.IntField()  # 횟수
     created_at = fields.DatetimeField(auto_now_add=True)  # 생성시 자동 입력
 
-
     class Meta:
         table = "emotion_stats"

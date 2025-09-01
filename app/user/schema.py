@@ -46,6 +46,7 @@ class Token(BaseModel):
 class LogoutResponse(BaseModel):
     message: str = "Logged out successfully"
 
+
 # 회원정보 수정
 class UserUpdate(BaseModel):
     nickname: str | None = None

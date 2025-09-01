@@ -12,7 +12,6 @@ from app.notification.model import NotificationType
 from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
 
-
 load_dotenv()
 
 TEST_MODE = False  # 기본값: 실제 발송

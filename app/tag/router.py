@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query
 from typing import List
 
-from app.tag.schema import TagSearchResponse, PopularTagsResponse, TagWithCountResponse
+from fastapi import APIRouter, HTTPException, Query
+
+from app.tag.schema import PopularTagsResponse, TagSearchResponse, TagWithCountResponse
 from app.tag.service import TagService
 
 router = APIRouter(prefix="/tags", tags=["Tags"])
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/tags", tags=["Tags"])
 @router.get("/search", response_model=TagSearchResponse)
 async def search_tags(
     q: str = Query(..., min_length=1, description="검색할 태그 이름"),
-    limit: int = Query(20, ge=1, le=100, description="최대 결과 수")
+    limit: int = Query(20, ge=1, le=100, description="최대 결과 수"),
 ):
     """태그 검색"""
     return await TagService.search_tags(q, limit)
@@ -26,8 +27,7 @@ async def get_popular_tags(
 
 @router.get("/users/{user_id}", response_model=List[TagWithCountResponse])
 async def get_user_tags(
-    user_id: int,
-    limit: int = Query(50, ge=1, le=200, description="최대 태그 수")
+    user_id: int, limit: int = Query(50, ge=1, le=200, description="최대 태그 수")
 ):
     """특정 사용자가 사용한 태그들"""
     tags = await TagService.get_user_tags(user_id, limit)

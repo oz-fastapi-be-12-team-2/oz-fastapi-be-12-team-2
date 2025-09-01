@@ -7,7 +7,7 @@ from tortoise.exceptions import DBConnectionError
 
 from app.ai.router import router as ai_router
 from app.tag.router import router as tag_router
-from app.user.router import router as user_router  # 유저 라우터 추가
+from app.user.routes import router as user_router  # 유저 라우터 추가
 from core.config import TORTOISE_ORM
 
 DATABASE_URL = "postgresql+asyncpg://diaryapi:diaryapi@localhost:5432/diaryapi"
@@ -61,6 +61,7 @@ app = FastAPI(
 app.include_router(ai_router)
 app.include_router(tag_router)
 app.include_router(user_router, prefix="/users", tags=["Users"])  # 유저 라우터 추가
+
 
 @app.get("/")
 def read_root():

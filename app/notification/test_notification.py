@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
 from app.diary.model import MainEmotionType
-
+from app.notification import service
 from app.notification.api import router as notification_router
 from app.notification.service import send_notifications
 from app.user.model import EmotionStats, NotificationType, PeriodType, User

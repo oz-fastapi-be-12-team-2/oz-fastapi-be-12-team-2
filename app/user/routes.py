@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Response, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.user.auth import create_access_token, create_refresh_token, get_current_user
 from app.user.model import User
@@ -14,6 +14,7 @@ from app.user.utils import hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+
 @router.post("/signup", response_model=UserResponse)
 async def signup(user: UserCreate):
     exists = await User.filter(email=user.email).first()
@@ -27,6 +28,7 @@ async def signup(user: UserCreate):
         phonenumber=user.phonenumber,
     )
     return new_user
+
 
 @router.post("/login", response_model=Token)
 async def login(user: UserLogin, response: Response):
@@ -42,18 +44,22 @@ async def login(user: UserLogin, response: Response):
 
     return Token(access_token=access, refresh_token=refresh)
 
+
 @router.post("/logout", response_model=LogoutResponse)
 async def logout(response: Response):
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
     return LogoutResponse()
 
+
 # 프로필 관련 기능 (회원정보 확인/수정/삭제)
+
 
 # 내 프로필 조회
 @router.get("/me", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
     return current_user
+
 
 # 내 프로필 수정
 @router.patch("/me", response_model=UserResponse)
@@ -66,6 +72,7 @@ async def update_profile(
         setattr(current_user, key, value)
     await current_user.save()
     return current_user
+
 
 # 내 계정 삭제
 @router.delete("/me")

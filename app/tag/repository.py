@@ -36,15 +36,17 @@ class TagRepository:
         from tortoise.functions import Count
 
         # Tortoise ORM으로 집계 쿼리
-        tags = await Tag.annotate(
-            diary_count=Count('diaries')
-        ).order_by('-diary_count').limit(limit)
+        tags = (
+            await Tag.annotate(diary_count=Count("diaries"))
+            .order_by("-diary_count")
+            .limit(limit)
+        )
 
         return [
             {
                 "tag_id": tag.tag_id,
                 "tag_name": tag.tag_name,
-                "diary_count": tag.diary_count
+                "diary_count": tag.diary_count,
             }
             for tag in tags
         ]
@@ -55,17 +57,18 @@ class TagRepository:
         from tortoise.functions import Count
 
         # 사용자의 일기들과 연결된 태그들을 집계
-        tags = await Tag.filter(
-            diaries__user_id=user_id
-        ).annotate(
-            usage_count=Count('diaries', distinct=True)
-        ).order_by('-usage_count').limit(limit)
+        tags = (
+            await Tag.filter(diaries__user_id=user_id)
+            .annotate(usage_count=Count("diaries", distinct=True))
+            .order_by("-usage_count")
+            .limit(limit)
+        )
 
         return [
             {
                 "tag_id": tag.tag_id,
                 "tag_name": tag.tag_name,
-                "usage_count": tag.usage_count
+                "usage_count": tag.usage_count,
             }
             for tag in tags
         ]
