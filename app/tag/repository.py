@@ -44,8 +44,8 @@ class TagRepository:
 
         return [
             {
-                "tag_id": tag.tag_id,
-                "tag_name": tag.tag_name,
+                "id": tag.id,
+                "name": tag.name,
                 "diary_count": tag.diary_count,
             }
             for tag in tags
@@ -66,8 +66,8 @@ class TagRepository:
 
         return [
             {
-                "tag_id": tag.tag_id,
-                "tag_name": tag.tag_name,
+                "tag_id": tag.id,
+                "tag_name": tag.name,
                 "usage_count": tag.usage_count,
             }
             for tag in tags

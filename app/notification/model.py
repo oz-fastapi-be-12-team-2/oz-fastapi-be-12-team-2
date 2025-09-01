@@ -17,11 +17,9 @@ class NotificationType(StrEnum):
 
 
 class Notification(TimestampMixin, Model):
-    notification_id = fields.BigIntField(pk=True)
+    id = fields.BigIntField(pk=True)
     content = fields.CharField(max_length=255, null=True)
-    notification_type = fields.CharEnumField(
-        NotificationType, default=NotificationType.EMAIL
-    )
+    type = fields.CharEnumField(NotificationType, default=NotificationType.EMAIL)
 
     # 타입 힌트는 문자열로 ("User") → 타입체커는 TYPE_CHECKING import 를 보고 인식
     user: fields.ManyToManyRelation["User"] = fields.ManyToManyField(
@@ -32,7 +30,7 @@ class Notification(TimestampMixin, Model):
     )
 
     def __str__(self):
-        return f"Notification(id={self.notification_id}, content={self.content})"
+        return f"Notification(id={self.id}, content={self.content})"
 
     class Meta:
         table = "notifications"

@@ -88,13 +88,13 @@ async def test_send_notifications(
     notifications = await send_notifications()
     assert notifications
     assert notifications[0].content is not None
-    assert notifications[0].notification_type == test_user.notification_type
+    assert notifications[0].type == test_user.notification_type
 
 
 async def test_create_notification_endpoint(client: AsyncClient):
     response = await client.post(
         "/notifications/",
-        json={"content": "테스트 알림", "notification_type": "PUSH"},
+        json={"content": "테스트 알림", "type": "PUSH"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -115,7 +115,7 @@ async def test_push_notification(
     test_user.notification_type = NotificationType.PUSH
     await test_user.save()
 
-    payload = {"content": "푸쉬 테스트", "notification_type": "PUSH"}
+    payload = {"content": "푸쉬 테스트", "type": "PUSH"}
     response = await client.post("/notifications/", json=payload)
 
     assert response.status_code == 200
@@ -130,7 +130,7 @@ async def test_sms_notification(
     test_user.notification_type = NotificationType.SMS
     await test_user.save()
 
-    payload = {"content": "문자 테스트", "notification_type": "SMS"}
+    payload = {"content": "문자 테스트", "type": "SMS"}
     response = await client.post("/notifications/", json=payload)
     assert response.status_code == 200
     captured = capsys.readouterr()
@@ -144,7 +144,7 @@ async def test_email_notification(
     test_user.notification_type = NotificationType.EMAIL
     await test_user.save()
 
-    payload = {"content": "이메일 테스트", "notification_type": "EMAIL"}
+    payload = {"content": "이메일 테스트", "type": "EMAIL"}
     response = await client.post("/notifications/", json=payload)
     assert response.status_code == 200
     captured = capsys.readouterr()
