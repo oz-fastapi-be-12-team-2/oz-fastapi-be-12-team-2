@@ -105,8 +105,8 @@ class Image(Model):
         # 같은 다이어리에서 동일 order 중복 방지
         unique_together = (("diary_id", "order"),)
 
-    # def __str__(self) -> str:
-    #     return f"Image(id={self.id}, diary_id={self.diary.id}, order={self.order})"
+    def __str__(self) -> str:
+        return f"Image(id={self.id}, diary_id={self.diary.id}, order={self.order})"
 
 
 # ---------------------------------------------------------------------
@@ -116,7 +116,7 @@ class Image(Model):
 
 class DiaryTag(Model):
     """
-    Diary - Tag 조인 테이블.
+    Diary - Tag 조인 테이블
     - 중복(같은 다이어리에 같은 태그) 방지
     - 조인/필터 성능을 위해 (diary_id, tag_id) 인덱스
     """
@@ -140,5 +140,5 @@ class DiaryTag(Model):
         unique_together = (("diary", "tag"),)
         indexes = (("diary", "tag"),)
 
-    # def __str__(self) -> str:
-    #     return f"DiaryTag(diary_id={self.diary.id}, tag_id={self.tag.id})"
+    def __str__(self) -> str:
+        return f"DiaryTag(diary_id={self.diary.id}, tag_id={self.tag.id})"

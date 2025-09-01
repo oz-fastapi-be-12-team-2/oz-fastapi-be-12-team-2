@@ -1,11 +1,11 @@
 import json
 from datetime import date
-from typing import Any, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from tortoise.transactions import in_transaction
 
 from app.ai.schema import DiaryEmotionResponse
-from app.diary.model import Diary, DiaryTag, Image
+from app.diary.model import Diary, Image
 from app.diary.schema import DiaryCreate
 from app.tag.model import Tag
 
@@ -66,6 +66,7 @@ async def list_by_filters(
     main_emotion: Optional[str] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    tag_keyword: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Diary], int]:
@@ -74,25 +75,50 @@ async def list_by_filters(
     - 필터(user_id, main_emotion, 기간)를 적용해서 페이징 처리
     - created_at DESC 정렬
     """
-    qs = Diary.all().prefetch_related("tags", "images", "users")
 
-    # 조건 필터링
+    base = Diary.all()
+
+    # 1) 조건 필터링
     if user_id is not None:
-        qs = qs.filter(user_id=user_id)
+        base = base.filter(user_id=user_id)
     if main_emotion is not None:
-        qs = qs.filter(main_emotion=main_emotion)
+        base = base.filter(
+            emotion_analysis_report__contains={"main_emotion": main_emotion}
+        )
     if date_from is not None:
-        qs = qs.filter(created_at__gte=date_from)
+        base = base.filter(created_at__gte=date_from)
     if date_to is not None:
-        qs = qs.filter(created_at__lte=date_to)
+        base = base.filter(created_at__lte=date_to)
+    if tag_keyword is not None:
+        # M2M(Tag) 조인 → 중복 방지 위해 distinct
+        base = base.filter(tags__name__icontains=tag_keyword).distinct()
 
-    # 총 개수
-    total = await qs.count()
+    # 2) 총 개수 (필요 없다면 has_next 방식으로 바꿔도 됨)
+    total = await base.count()
 
-    # 페이징 처리 + 정렬
+    # 3) 페이지 대상 id만 추출 (정렬 + 오프셋/리밋)
+    offset = (page - 1) * page_size
+    page_qs = base.order_by("-created_at", "-id").offset(offset).limit(page_size)
+
+    page_ids_raw = await page_qs.values_list("id", flat=True)
+    # Tortoise가 Any/tuple로 추론될 수 있으니 확실히 int 리스트로 정규화
+    page_ids: List[int] = [int(x[0] if isinstance(x, tuple) else x) for x in page_ids_raw]  # type: ignore[index]
+
+    if not page_ids:
+        return [], total
+
+    # 4) 해당 id들만 프리패치해서 가져오기
     rows = (
-        await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+        await Diary.filter(id__in=page_ids)
+        .select_related("user")  # FK는 select_related
+        .prefetch_related("tags", "images")  # M2M/역참조는 prefetch_related
+        .order_by("-created_at", "-id")
     )
+
+    # 5) DB가 IN 정렬을 보장하지 않으므로, 페이지 id 순서로 정렬 복원
+    order: Dict[int, int] = {pid: i for i, pid in enumerate(page_ids)}
+    DEFAULT_RANK: int = 10**12
+    rows.sort(key=lambda d: order.get(int(d.id), DEFAULT_RANK))
 
     return rows, total
 
@@ -100,16 +126,19 @@ async def list_by_filters(
 # -----------------------------------------------------------------------------
 # UPDATE
 # -----------------------------------------------------------------------------
-SCALAR_UPDATABLE = {"title", "content", "main_emotion"}  # 필요한 것만 허용
+SCALAR_UPDATABLE = {
+    "title",
+    "content",
+    "main_emotion",
+    "emotion_analysis_report",
+}  # 필요한 것만 허용
 
 
 async def update_partially(diary: Diary, patch: dict[str, Any]) -> Diary:
     clean: dict[str, Any] = {}
     for k, v in patch.items():
-        if k in {"id", "created_at", "updated_at", "user_id"}:
+        if k in {"id", "created_at", "updated_at"}:
             continue
-        if k in {"tags", "images", "image_urls"}:
-            continue  # 관계/별도 처리
         if k not in SCALAR_UPDATABLE:
             continue
         # None 무시하고 싶으면: if v is None: continue
@@ -121,37 +150,34 @@ async def update_partially(diary: Diary, patch: dict[str, Any]) -> Diary:
     return diary
 
 
-async def replace_tags(diary: Diary, names: Sequence[str], using_db=None) -> None:
-    """
-    태그 전체 교체.
-    - 입력 문자열 배열을 정규화
-    - 존재하지 않으면 생성(get_or_create)
-    - 기존 연결 clear 후, 새 태그 add
-    """
-    # if not names:
-    #     await diary.tags.clear()
-    #     return
+async def replace_tags(
+    diary: Diary, names: Optional[Sequence[str]], using_db=None
+) -> None:
+    # 1) 쉼표 분리 + 트림 + 중복 제거(순서 보존)
+    vals: list[str] = []
+    for s in names or []:
+        if isinstance(s, str):
+            vals += [p.strip() for p in s.split(",") if p.strip()]
+        seen: set[str] = set()
+        cleaned: list[str] = []
+        for x in vals:
+            if x not in seen:
+                seen.add(x)
+                cleaned.append(x)
 
-    # async with in_transaction():
-    #     tag_objs: list[Tag] = []
-    #     for name in names:
-    #         tag, _ = await Tag.get_or_create(name=name)
-    #         tag_objs.append(tag)
-    #     await diary.tags.clear()
-    #     await diary.tags.add(*tag_objs)
+    # 2) 동일 커넥션에서 clear → (태그 생성/연결)
+    if using_db is None:
+        async with in_transaction() as db:
+            await diary.tags.clear(using_db=db)
 
-    cleaned = [n.strip() for n in (names or []) if isinstance(n, str) and n.strip()]
-    await DiaryTag.filter(diary_id=diary.id).using_db(using_db).delete()
-    if not cleaned:
-        return
-    tags: list[Tag] = []
-    for nm in cleaned:
-        t, _ = await Tag.get_or_create(name=nm, using_db=using_db)
-        tags.append(t)
-    await DiaryTag.bulk_create(
-        [DiaryTag(diary_id=diary.id, tag_id=t.id) for t in tags],
-        using_db=using_db,
-    )
+            for name in cleaned:
+                tag, _ = await Tag.get_or_create(name=name, using_db=db)
+                await diary.tags.add(tag, using_db=db)
+    else:
+        await diary.tags.clear(using_db=using_db)
+        for name in cleaned:
+            tag, _ = await Tag.get_or_create(name=name, using_db=using_db)
+            await diary.tags.add(tag, using_db=using_db)
 
 
 async def replace_images(diary: Diary, urls: Sequence[str], using_db=None) -> None:
@@ -172,7 +198,6 @@ async def replace_images(diary: Diary, urls: Sequence[str], using_db=None) -> No
     async with in_transaction():
         await Image.filter(diary_id=diary.id).delete()
         if norm:
-            print("replace_images.norm=", norm)
             rows = [
                 Image(diary_id=diary.id, url=u, order=i + 1) for i, u in enumerate(norm)
             ]

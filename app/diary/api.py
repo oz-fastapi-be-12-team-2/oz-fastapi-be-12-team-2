@@ -12,6 +12,7 @@ from fastapi import (
     HTTPException,
     Query,
     UploadFile,
+    status,
 )
 
 from app.diary.model import MainEmotionType
@@ -27,7 +28,7 @@ from app.diary.service import DiaryService
 from app.files.service import CloudinaryService
 from app.tag.schema import TagListResponse
 from app.user.auth import get_current_user
-from app.user.model import User
+from app.user.model import User, UserRole
 
 # ---------------------------------------------------------------------
 # 다이어리 API 라우터
@@ -62,7 +63,6 @@ def _as_list_item(x: object) -> DiaryListItem:
             created_at=x.created_at,
         )
 
-    # ORM-like: duck typing
     return DiaryListItem(
         id=getattr(x, "id"),
         user_id=getattr(x, "user_id"),
@@ -84,9 +84,9 @@ async def create_diary(
     images: Optional[List[UploadFile]] = File(None),
     current_user: User = Depends(get_current_user),
 ):
-    # opts = UploadImageOptions(folder="diary")
+
     image_urls = await CloudinaryService.upload_images_to_urls(images)
-    print("api.image_urls", image_urls)
+
     payload = DiaryCreate(
         user_id=current_user.id,
         emotion_analysis_report=None,
@@ -131,7 +131,6 @@ async def get_diary(diary_id: int):
 )
 async def list_diaries(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
-    # ✅ Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
     main_emotion: Optional[MainEmotionType] = Query(
         None, description="주요 감정 라벨로 필터링"
     ),
@@ -139,15 +138,51 @@ async def list_diaries(
     date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
     page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
     page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     다이어리 목록 조회 (페이징)
     - Query Params: user_id, main_emotion, date_from, date_to, page, page_size
-    - Response: DiaryListResponse (items[list[DiaryListItem]] + meta)
+    - user_id가 있으면:
+        USER: 본인 ID와 일치할 때만 허용
+        STAFF: 허용(특정 사용자 조회)
+        SUPERUSER: 허용
+    - user_id가 없으면:
+        USER/STAFF: 불가
+        SUPERUSER: 전체 조회 허용
     """
-    # Service 결과는 구현에 따라 ORM / DiaryResponse / DiaryListItem 등일 수 있음
+    # 1) 권한별 user scope 결정
+    role = current_user.user_roles
+    effective_user_id: Optional[int]
+
+    if user_id is not None:
+        if role == UserRole.USER:
+            if user_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"{role} 권한은 본인 다이어리만 조회할 수 있습니다.",
+                )
+            effective_user_id = current_user.id
+        elif role in (UserRole.STAFF, UserRole.SUPERUSER):
+            effective_user_id = user_id
+        else:
+            # 혹시 새로운 롤이 추가되는 경우 대비
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="권한이 없습니다.",
+            )
+    else:
+        # user_id 미지정
+        if role == UserRole.SUPERUSER:
+            effective_user_id = None  # 전체 조회
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"{role} 권한은 user_id 없이 조회할 수 없습니다.",
+            )
+
     raw_items, total = await DiaryService.list(
-        user_id=user_id,
+        user_id=effective_user_id,
         main_emotion=(
             main_emotion.value
             if isinstance(main_emotion, MainEmotionType)
@@ -159,7 +194,7 @@ async def list_diaries(
         page_size=page_size,
     )
 
-    # ✅ 어떤 타입이 오든 리스트 요약으로 변환하여 mypy 에러 제거
+    # 어떤 타입이 오든 리스트 요약으로 변환하여 mypy 에러 제거
     items: list[DiaryListItem] = [_as_list_item(it) for it in (raw_items or [])]
 
     return DiaryListResponse(
