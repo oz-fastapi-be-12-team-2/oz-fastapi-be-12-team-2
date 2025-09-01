@@ -135,6 +135,12 @@ async def test_get_profile(client: AsyncClient):
     data = resp.json()
     assert data["email"] == "profile@example.com"
 
+    # 검증 추가
+    assert "receive_notifications" in data
+    assert "notifications" in data
+    assert isinstance(data["receive_notifications"], bool)
+    assert isinstance(data["notifications"], list)
+
 
 @pytest.mark.asyncio
 async def test_update_profile(client: AsyncClient):

@@ -33,7 +33,8 @@ class UserResponse(BaseModel):
     phonenumber: str
     created_at: datetime
     updated_at: datetime
-
+    receive_notifications: bool  # 추가
+    notifications: list          # 추가
     class Config:
         orm_mode = True  # ORM 모델과 호환 (예: SQLAlchemy, TortoiseORM)
 
