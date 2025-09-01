@@ -6,6 +6,8 @@ from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
 from app.ai.api import router as ai_router
+from app.diary.api import router as diary_router
+from app.notification.api import router as notification_router
 from app.tag.api import router as tag_router
 from app.user.api import router as user_router
 from core.config import TORTOISE_ORM
@@ -60,7 +62,9 @@ app = FastAPI(
 # AI 라우터 등록
 app.include_router(ai_router)
 app.include_router(tag_router)
-app.include_router(user_router)  # 유저 라우터 추가
+app.include_router(user_router)
+app.include_router(diary_router)
+app.include_router(notification_router)
 
 
 @app.get("/")
