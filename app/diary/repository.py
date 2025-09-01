@@ -187,3 +187,141 @@ async def delete(diary: Diary) -> None:
     Diary 삭제 (관련 이미지/조인 테이블은 CASCADE에 의해 제거)
     """
     await diary.delete()
+
+
+async def search_by_tags(
+    *,
+    tag_names: Optional[list[str]] = None,
+    user_id: Optional[int] = None,
+    main_emotion: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[Diary], int]:
+    """
+    태그명으로 일기 검색
+    - tag_names가 있으면 해당 태그들 중 하나라도 포함된 일기들 검색
+    - 다른 필터 조건들도 함께 적용
+    """
+    qs = Diary.all().prefetch_related("tags", "images", "user")
+
+    # 태그 필터링 (OR 조건: 태그 중 하나라도 매치되면)
+    if tag_names:
+        # 공백 제거 및 빈 값 필터링
+        clean_tag_names = [name.strip() for name in tag_names if name and name.strip()]
+        if clean_tag_names:
+            qs = qs.filter(tags__name__in=clean_tag_names).distinct()
+
+    # 기존 필터들
+    if user_id is not None:
+        qs = qs.filter(user_id=user_id)
+    if main_emotion is not None:
+        qs = qs.filter(main_emotion=main_emotion)
+    if date_from is not None:
+        qs = qs.filter(created_at__gte=date_from)
+    if date_to is not None:
+        qs = qs.filter(created_at__lte=date_to)
+
+    # 총 개수
+    total = await qs.count()
+
+    # 페이징 처리 + 정렬
+    rows = (
+        await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+    )
+
+    return rows, total
+
+
+async def search_by_all_tags(
+    *,
+    tag_names: list[str],
+    user_id: Optional[int] = None,
+    main_emotion: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[Diary], int]:
+    """
+    모든 태그를 포함하는 일기 검색 (AND 조건)
+    - 지정된 모든 태그가 붙어있는 일기들만 검색
+    """
+    if not tag_names:
+        return [], 0
+
+    clean_tag_names = [name.strip() for name in tag_names if name and name.strip()]
+    if not clean_tag_names:
+        return [], 0
+
+    qs = Diary.all().prefetch_related("tags", "images", "user")
+
+    # 모든 태그를 포함하는 일기 찾기 (AND 조건)
+    for tag_name in clean_tag_names:
+        qs = qs.filter(tags__name=tag_name)
+
+    qs = qs.distinct()
+
+    # 기존 필터들
+    if user_id is not None:
+        qs = qs.filter(user_id=user_id)
+    if main_emotion is not None:
+        qs = qs.filter(main_emotion=main_emotion)
+    if date_from is not None:
+        qs = qs.filter(created_at__gte=date_from)
+    if date_to is not None:
+        qs = qs.filter(created_at__lte=date_to)
+
+    # 총 개수
+    total = await qs.count()
+
+    # 페이징 처리 + 정렬
+    rows = (
+        await qs.order_by("-created_at").offset((page - 1) * page_size).limit(page_size)
+    )
+
+    return rows, total
+
+
+async def count_diaries_by_tag_name(tag_name: str) -> int:
+    """
+    특정 태그명이 사용된 일기 개수 반환
+    """
+    return await Diary.filter(tags__name=tag_name.strip()).count()
+
+
+async def get_diaries_with_tag_count(
+    *,
+    min_tag_count: int = 1,
+    user_id: Optional[int] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[Diary], int]:
+    """
+    최소 N개 이상의 태그를 가진 일기들 조회
+    """
+    # Raw SQL이 필요한 복잡한 쿼리이므로 간단한 버전으로 구현
+    qs = Diary.all().prefetch_related("tags", "images", "user")
+
+    if user_id is not None:
+        qs = qs.filter(user_id=user_id)
+
+    # 모든 일기를 가져와서 Python에서 필터링 (비효율적이지만 간단)
+    all_diaries = await qs.order_by("-created_at")
+
+    # 태그 개수 조건 필터링
+    filtered_diaries = []
+    for diary in all_diaries:
+        tags = getattr(diary, "tags", [])
+        if len(tags) >= min_tag_count:
+            filtered_diaries.append(diary)
+
+    total = len(filtered_diaries)
+
+    # 페이징 적용
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_diaries = filtered_diaries[start:end]
+
+    return page_diaries, total

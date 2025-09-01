@@ -8,7 +8,7 @@ from fastapi import Form
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.ai.schema import DiaryEmotionResponse
-from app.diary.model import MainEmotionType
+from app.diary.model import Diary, MainEmotionType
 
 # ============================================================
 # 1) 공통 유효성 타입(제약 모음)
@@ -221,13 +221,13 @@ class _DiaryLike(Protocol):
 
 
 # ---------- 공개 매퍼 ----------
-def to_diary_list_item_from_model(diary: _DiaryLike) -> DiaryListItem:
+def to_diary_list_item_from_model(diary: Diary) -> DiaryListItem:
     """
     Tortoise ORM Diary 객체 → 목록 요약 스키마(DiaryListItem) 변환
     """
     return DiaryListItem(
         id=diary.id,
-        user_id=diary.user_id,
+        user_id=diary.user.id,
         title=diary.title,
         main_emotion=getattr(diary, "main_emotion", None),
         created_at=diary.created_at,
