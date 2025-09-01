@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from tortoise import Model, fields
 
 from app.diary.model import MainEmotionType
-from app.notification.model import NotificationType
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
@@ -36,19 +35,23 @@ class User(TimestampMixin, Model):
     lastlogin = fields.DatetimeField(null=True)
     account_activation = fields.BooleanField(default=False)
     receive_notifications = fields.BooleanField(default=True)
-    notification_type = fields.CharEnumField(
-        enum_type=NotificationType, default=NotificationType.PUSH
-    )
     user_roles = fields.CharEnumField(
         enum_type=UserRole, default=UserRole.USER
     )  # 유저 권한
 
-    notifications: fields.ManyToManyRelation["Notification"]
+    notifications: fields.ManyToManyRelation["Notification"] = fields.ManyToManyField(
+        "models.Notification",
+        related_name="users",
+        through="models.UserNotification",  # ← 조인 모델 경로
+    )
     emotionstats: fields.ManyToManyRelation["EmotionStats"]
 
     class Meta:
         table = "users"
         ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"User(id={self.id}, email={self.email}, notifications_type={self.notifications})"
 
 
 # EmotionStats 필드
@@ -65,3 +68,34 @@ class EmotionStats(Model):
 
     class Meta:
         table = "emotion_stats"
+
+
+# ---------------------------------------------------------------------
+# 유저 알람 조인 모델
+# ---------------------------------------------------------------------
+
+
+class UserNotification(Model):
+    """
+    유저 - 알람 조인 테이블.
+    - 중복(같은 다이어리에 같은 태그) 방지
+    - 조인/필터 성능을 위해 (diary_id, tag_id) 인덱스
+    """
+
+    id = fields.IntField(pk=True, generated=True)
+    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+        "models.User",
+        on_delete=fields.CASCADE,
+    )
+    notification: fields.ForeignKeyRelation[Notification] = fields.ForeignKeyField(
+        "models.Notification",
+        on_delete=fields.CASCADE,
+    )
+
+    class Meta:
+        table = "user_notification"
+        unique_together = (("user", "notification"),)
+        indexes = (("user", "notification"),)
+
+    def __str__(self) -> str:
+        return f"UserNotification(user_id={self.user.id}, notification_id={self.notification.id})"

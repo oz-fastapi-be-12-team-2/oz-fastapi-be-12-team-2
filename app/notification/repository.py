@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from app.notification.model import Notification, NotificationType
 from app.user.model import User
 
@@ -19,3 +21,28 @@ async def create_notification(
 async def get_notifications_for_user(user_id: int) -> list[Notification]:
     user = await User.get(id=user_id)
     return await user.notifications.all()
+
+
+async def replace_notifications(
+    user: User,
+    notification_types: Sequence[NotificationType],
+    using_db=None,
+) -> None:
+    """
+    - user의 기존 notification_types 관계를 모두 제거하고
+    - 새로 전달받은 notification_types와 연결
+
+    Args:
+        user: User 객체
+        notification_types: NotificationType id 리스트 (예: [1,2,3])
+        using_db: 트랜잭션 연결 (서비스에서 in_transaction()으로 전달)
+    """
+    # 기존 관계 제거
+    await user.fetch_related("notifications", using_db)
+    await user.notifications.clear(using_db)
+
+    # 새 관계 추가
+    if notification_types:
+        objs = await Notification.filter(id__in=notification_types)
+        if objs:
+            await user.notifications.add(*objs, using_db)

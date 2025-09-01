@@ -61,7 +61,10 @@ async def send_notifications():
         if await check_weekly_negative_emotions(user.id):
             content = message
             notification = await create_notification(
-                content=content, notification_type=user.notification_type
+                content=content,
+                notification_type=user.notifications.__getattribute__(
+                    "notification_type"
+                ),
             )
 
             # 테스트 모드에서는 프린트만 실행

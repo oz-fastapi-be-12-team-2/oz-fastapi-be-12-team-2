@@ -10,7 +10,8 @@ from app.user.schema import (
     UserResponse,
     UserUpdate,
 )
-from app.user.utils import hash_password, verify_password
+from app.user.service import UserService
+from app.user.utils import verify_password
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -20,14 +21,7 @@ async def signup(user: UserCreate):
     exists = await User.filter(email=user.email).first()
     if exists:
         raise HTTPException(status_code=400, detail="Email already registered")
-    new_user = await User.create(
-        email=user.email,
-        password=hash_password(user.password),
-        nickname=user.nickname,
-        username=user.username,
-        phonenumber=user.phonenumber,
-    )
-    return new_user
+    return await UserService.signup(user)
 
 
 @router.post("/login", response_model=Token)
