@@ -26,6 +26,7 @@ services:
       - db
     volumes:
       - .:/app
+      - /app/.venv  #호스트 .venv 덮어쓰기 방지
 
 volumes:
   postgres_data:

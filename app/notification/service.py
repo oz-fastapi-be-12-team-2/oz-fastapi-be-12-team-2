@@ -3,7 +3,6 @@ import smtplib
 from datetime import date, datetime, time
 from email.mime.text import MIMEText
 
-# import firebase_admin  # type: ignore
 from dotenv import load_dotenv
 from solapi import SolapiMessageService  # type: ignore
 from solapi.model import RequestMessage  # type: ignore
@@ -13,10 +12,7 @@ from app.notification.model import NotificationType
 from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
 
-# from firebase_admin import credentials, messaging  # type: ignore
 
-
-# .env 읽기
 load_dotenv()
 
 TEST_MODE = False  # 기본값: 실제 발송
