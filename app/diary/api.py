@@ -11,6 +11,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     status,
 )
@@ -255,26 +256,55 @@ async def list_diaries(
     response_model_exclude_none=True,
 )
 async def update_diary(
-    diary_id: int, payload: DiaryUpdate, current_user: User = Depends(get_current_user)
+    diary_id: int,
+    request: Request,  # ← 원시 폼 접근용
+    title: str = Form(...),
+    content: str = Form(...),
+    tags: Optional[List[str]] = Form(None),  # None=미변경, []=초기화, ['a','b']=교체
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    다이어리 수정 (부분 수정 가능)
-    - Path Param: diary_id (수정할 다이어리 ID)
-    - Request Body: DiaryUpdate (title, content, main_emotion 등 일부만 보내도 됨)
-    - Response: 수정된 DiaryResponse
-    """
-    # 수정 전 소유자 확인
+    # 1) 소유자 확인
     cur = await DiaryService.get(diary_id)
     if not cur:
         raise HTTPException(status_code=404, detail="Diary not found")
-
-    owner_id_opt: Optional[int] = getattr(cur, "user_id", None)
-    owner_id = cast(int, owner_id_opt)
+    owner_id = getattr(cur, "user_id", None)
+    if owner_id is None:
+        raise HTTPException(status_code=500, detail="일기 데이터에 user_id가 없습니다.")
     ensure_can_modify_diary_or_raise(
         current_user_id=current_user.id, diary_owner_id=owner_id
     )
 
-    res = await DiaryService.update(diary_id, payload)
+    # 2) 원시 폼에서 images 직접 파싱 (문자열/빈 값은 무시)
+    form = await request.form()
+    raw_images = (
+        form.getlist("images") if "images" in form else []
+    )  # List[UploadFile | str | ...]
+    valid_files: List[UploadFile] = []
+    for x in raw_images:
+        if isinstance(x, UploadFile) and x.filename:
+            valid_files.append(x)
+
+    image_urls: Optional[List[str]] = None  # 기본: 미변경
+    if valid_files:
+        image_urls = await CloudinaryService.upload_images_to_urls(valid_files)
+
+    # 3) 태그 정리
+    tags_payload: Optional[List[str]]
+    if tags is None or tags == [""]:
+        tags_payload = None
+    else:
+        tags_payload = [t.strip() for t in tags if t and t.strip()]  # []면 전체 제거
+
+    # 4) 업데이트 페이로드
+    payload = DiaryUpdate(
+        title=title,
+        content=content,
+        image_urls=image_urls,  # None=미변경, [..]=교체
+        tags=tags_payload,  # None=미변경, []=초기화
+    )
+
+    # 5) 업데이트 실행
+    res = await DiaryService.update(cur, payload)
     return res
 
 

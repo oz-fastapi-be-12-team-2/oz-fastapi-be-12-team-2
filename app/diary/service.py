@@ -206,55 +206,88 @@ class DiaryService:
         return [to_diary_response(r) for r in rows], total
 
     @staticmethod
-    async def update(diary_id: int, payload: DiaryUpdate) -> Optional[DiaryResponse]:
+    async def update(
+        origin_diary: DiaryResponse, payload: DiaryUpdate
+    ) -> Optional[DiaryResponse]:
         """
         다이어리 수정 서비스
         - 스칼라 필드만 부분 업데이트
         - tags / image_urls 는 '전체 교체' 정책
         - 최종 응답은 repository.to_response 로 일관 반환
         """
-        d = await repository.get_by_id(diary_id)
+        ai = _resolve_ai()
+
+        # 0) 대상 로드
+        d = await repository.get_by_id(origin_diary.id)
         if not d:
             return None
 
         # 1) 스칼라 부분 업데이트 패치 구성
         patch: Dict[str, Any] = {}
+
         if payload.title is not None:
             patch["title"] = payload.title
+
         if payload.content is not None:
+            # 내용이 변경되었을 때만 내용과 새 AI 분석 반영 (빈 문자열이면 초기화 처리)
             patch["content"] = payload.content
 
-        if payload.emotion_analysis_report is not None:
-            ea = payload.emotion_analysis_report
-            if hasattr(ea, "model_dump"):
-                patch["emotion_analysis_report"] = ea.model_dump()
-            elif isinstance(ea, dict):
-                patch["emotion_analysis_report"] = ea
-            else:
-                patch["emotion_analysis_report"] = (
-                    ea  # str/기타도 JSONField가 수용하면 그대로
-                )
+            # AI 분석 (옵션)
+            ai_result = None
+            if ai:
+                try:
+                    with anyio.move_on_after(6) as scope:
+                        req = DiaryEmotionRequest(
+                            diary_content=payload.content,
+                            user_id=origin_diary.user_id,
+                        )
+                        ai_result = await ai.analyze_diary_emotion(req)
+                        # DB 반영: main_emotion + emotion_analysis_report
+                        await repository.update_partially(
+                            d,
+                            {
+                                "main_emotion": getattr(
+                                    ai_result, "main_emotion", None
+                                ),
+                                "emotion_analysis_report": to_dict(ai_result),
+                            },
+                        )
+
+                    if scope.cancelled_caught:
+                        logger.logger.warning(
+                            "AI 분석 타임아웃: 감정분석 생략(생성은 유지)"
+                        )
+                except Exception as e:
+                    logger.logger.warning("AI 분석 실패(생성은 유지): %s", e)
 
         if patch:
             d = await repository.update_partially(d, patch)
-        # 2) 관계 전체 교체
+
+        # 2) 관계 전체 교체 (None=미변경)
         if payload.tags is not None:
             await repository.replace_tags(d, payload.tags)
 
         if payload.image_urls is not None:
             await repository.replace_images(d, payload.image_urls)
-        trans_resp = to_diary_response(d)
-        trans_resp.tags = [
-            TagOut(name=(t.name if hasattr(t, "name") else str(t)).strip())
-            for t in (payload.tags or [])
-            if isinstance(getattr(t, "name", t), str)
-            and str(getattr(t, "name", t)).strip()
-        ]
-        trans_resp.image_urls = [
-            DiaryImageOut(url=u, order=i + 1) for i, u in enumerate(payload.image_urls)
-        ]
 
-        # 3) 최종 응답(태그/이미지/감정 포함)
+        # 3) 응답 변환
+        trans_resp = to_diary_response(d)
+
+        # 전달된 경우에만 응답의 태그/이미지 오버라이드
+        if payload.tags is not None:
+            trans_resp.tags = [
+                TagOut(name=(t.name if hasattr(t, "name") else str(t)).strip())
+                for t in payload.tags
+                if isinstance(getattr(t, "name", t), str)
+                and str(getattr(t, "name", t)).strip()
+            ]
+
+        if payload.image_urls is not None:
+            urls: List[str] = list(payload.image_urls)  # mypy: 확실히 List[str]로
+            trans_resp.image_urls = [
+                DiaryImageOut(url=u, order=i + 1) for i, u in enumerate(urls)
+            ]
+
         return trans_resp
 
     @staticmethod
