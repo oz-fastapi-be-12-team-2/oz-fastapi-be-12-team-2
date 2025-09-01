@@ -3,10 +3,10 @@ import re
 
 import google.generativeai as genai
 
+from app.diary.model import MainEmotionType
 from core.config import AI_SETTINGS
 from core.exceptions import AIServiceError
 
-from ..diary.model import MainEmotion
 from .prompts import SimpleEmotionPrompts
 from .schema import DiaryEmotionRequest, DiaryEmotionResponse, EmotionAnalysis
 
@@ -49,7 +49,7 @@ class DiaryEmotionService:
             )
 
             return DiaryEmotionResponse(
-                main_emotion=MainEmotion(main_emotion),
+                main_emotion=MainEmotionType(main_emotion),
                 emotion_analysis=EmotionAnalysis(**analysis_data),
                 confidence=analysis_data.get("confidence", 0.5),
             )

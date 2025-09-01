@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from solapi import SolapiMessageService  # type: ignore
 from solapi.model import RequestMessage  # type: ignore
 
-from app.diary.model import MainEmotion
+from app.diary.model import MainEmotionType
 from app.notification.model import NotificationType
 from app.notification.repository import create_notification
 from app.user.model import EmotionStats, PeriodType, User
@@ -36,7 +36,7 @@ async def check_weekly_negative_emotions(user_id: int) -> bool:
         period_type=PeriodType.WEEKLY.value,
         created_at__gte=start,
         created_at__lt=end,
-        emotion_type=MainEmotion.NEGATIVE.value,
+        emotion_type=MainEmotionType.NEGATIVE.value,
     )
     return stats is not None and stats.frequency >= 5
 
