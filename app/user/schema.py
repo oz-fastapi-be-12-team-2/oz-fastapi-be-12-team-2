@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -13,8 +13,8 @@ class UserCreate(BaseModel):
     phonenumber: Annotated[
         str, Field(pattern=r"^010-\d{4}-\d{4}$")
     ]  # 010-0000-0000 형식
-    receive_notifications: bool
-    notification_type: str
+    receive_notifications: bool = True
+    notification_type: str = "EMAIL"  # 기본값 EMAIL
 
 
 # 로그인 요청 시 스키마
@@ -33,7 +33,7 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     receive_notifications: bool  # 추가
-    notification_type: str  # 추가
+    notification_type: Optional[str] = None  # 추가
 
     class Config:
         orm_mode = True  # ORM 모델과 호환 (예: SQLAlchemy, TortoiseORM)
@@ -56,3 +56,9 @@ class UserUpdate(BaseModel):
     nickname: str | None = None
     username: str | None = None
     phonenumber: str | None = None
+
+
+# 알림 설정 수정
+class NotificationUpdateRequest(BaseModel):
+    receive_notifications: bool
+    notification_type: Optional[str] = None  # EMAIL / PUSH / SMS 중 하나

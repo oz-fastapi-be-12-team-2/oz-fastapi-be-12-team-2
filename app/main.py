@@ -16,6 +16,7 @@ from tortoise.exceptions import DBConnectionError
 from app.ai.api import router as ai_router
 from app.diary.api import router as diary_router
 from app.notification.api import router as notification_router
+from app.notification.seed import seed_notifications
 from app.tag.api import router as tag_router
 from app.user.api import router as user_router
 from core.config import TORTOISE_ORM
@@ -36,6 +37,10 @@ async def lifespan(app: FastAPI):
             if generate_schemas:
                 await Tortoise.generate_schemas()
             print("✅ DB 연결 및 초기화 성공")
+
+            # Notification 시드 실행
+            await seed_notifications()
+
             break
         except DBConnectionError:
             if i == attempts:
@@ -112,13 +117,66 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # 라우터
 app.include_router(ai_router)
 app.include_router(tag_router)
+
+# ─────────────────────────────────────────────────────────────
+# Swagger 보안 스키마 (Bearer + Cookie)
+# ─────────────────────────────────────────────────────────────
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    security_schemes = openapi_schema.setdefault("components", {}).setdefault(
+        "securitySchemes", {}
+    )
+    # Bearer (JWT)
+    security_schemes["BearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+    }
+    # Cookie (access_token)
+    security_schemes["CookieAuth"] = {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token",
+    }
+
+    # 전역 보안 요구사항: Bearer 또는 Cookie 중 하나면 OK
+    openapi_schema["security"] = [
+        {"BearerAuth": []},
+        {"CookieAuth": []},
+    ]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+# FastAPI.openapi는 “메서드”라서 재할당하면 안 된다고 해서 ignore 추가
+app.openapi = custom_openapi  # type: ignore[method-assign]
+
+
+# ─────────────────────────────────────────────────────────────
+# 라우터 등록
+# ─────────────────────────────────────────────────────────────
 app.include_router(user_router)
 app.include_router(diary_router)
+app.include_router(tag_router)
+app.include_router(ai_router)
 app.include_router(notification_router)
 app.mount("/tools", StaticFiles(directory="tools"), name="tools")
+
+# 라우터 순서 변경
 
 
 # 기본 엔드포인트

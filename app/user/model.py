@@ -88,10 +88,15 @@ class UserNotification(Model):
     )
 
     class Meta:
-        table = "user_notification"
+        table = "user_notifications"
         unique_together = (("user", "notification"),)
         # ✅ 인덱스는 필드명 기준으로 선언
         indexes = (("user", "notification"),)
 
+    # str 에러 해결용 type checking
+    if TYPE_CHECKING:
+        user_id: int
+        notification_id: int
+
     def __str__(self) -> str:
-        return f"UserNotification(user_id={self.user.id}, notification_id={self.notification.id})"
+        return f"UserNotification(user_id={self.user_id}, notification_id={self.notification_id})"  # FK 직접 접근
