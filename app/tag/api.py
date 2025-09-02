@@ -83,38 +83,38 @@ async def get_tag(tag_id: int):
 # 특정 태그가 붙은 일기 목록 조회 API
 # GET /tags/{tag_id}/diaries
 # ---------------------------------------------------------------------
-@router.get(
-    "/{tag_id}/diaries",
-    response_model=TagDiaryListResponse,
-    response_model_exclude_none=True,
-)
-async def get_diaries_by_tag(
-    tag_id: int,
-    page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
-    page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
-):
-    """
-    특정 태그가 붙은 일기 목록 조회
-    - Path Param: tag_id (태그 ID)
-    - Query Params: page, page_size
-    - Response: TagDiaryListResponse
-    """
-    # 태그 존재 여부 확인
-    tag = await TagService.get(tag_id)
-    if not tag:
-        raise HTTPException(status_code=404, detail="존재하지않는 태그입니다.")
-
-    diaries, total = await TagService.get_diaries_by_tag(
-        tag_id=tag_id,
-        page=page,
-        page_size=page_size,
-    )
-
-    return TagDiaryListResponse(
-        tag=tag,
-        diaries=diaries,
-        meta=PageMeta(page=page, page_size=page_size, total=total),
-    )
+# @router.get(
+#     "/{tag_id}/diaries",
+#     response_model=TagDiaryListResponse,
+#     response_model_exclude_none=True,
+# )
+# async def get_diaries_by_tag(
+#     tag_id: int,
+#     page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
+#     page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+# ):
+#     """
+#     특정 태그가 붙은 일기 목록 조회
+#     - Path Param: tag_id (태그 ID)
+#     - Query Params: page, page_size
+#     - Response: TagDiaryListResponse
+#     """
+#     # 태그 존재 여부 확인
+#     tag = await TagService.get(tag_id)
+#     if not tag:
+#         raise HTTPException(status_code=404, detail="존재하지않는 태그입니다.")
+#
+#     diaries, total = await TagService.get_diaries_by_tag(
+#         tag_id=tag_id,
+#         page=page,
+#         page_size=page_size,
+#     )
+#
+#     return TagDiaryListResponse(
+#         tag=tag,
+#         diaries=diaries,
+#         meta=PageMeta(page=page, page_size=page_size, total=total),
+#     )
 
 
 # ---------------------------------------------------------------------
@@ -122,7 +122,7 @@ async def get_diaries_by_tag(
 # GET /tags/search/diaries
 # ---------------------------------------------------------------------
 @router.get(
-    "/search/diaries",
+    "/search-by-name/diaries",
     response_model=TagDiaryListResponse,
     response_model_exclude_none=True,
 )
@@ -143,15 +143,19 @@ async def search_diaries_by_tag_name(
             status_code=404, detail=f"'{tag_name}' 태그를 찾을 수 없습니다."
         )
 
-    diaries, total = await TagService.get_diaries_by_tag(
-        tag_id=tag.id,
+    diaries, total = await TagService.get_diaries_by_tag_name(
+        tag_name=tag.name,
         page=page,
         page_size=page_size,
     )
+    # 해당 태그의 일기가 없는 경우 추가 예외 처리
+    if total == 0:
+        raise HTTPException(status_code=404, detail=f"'{tag_name}' 태그가 붙은 일기가 없습니다.")
+
 
     return TagDiaryListResponse(
         tag=tag,
-        diaries=diaries,
+        diaries=list(diaries),
         meta=PageMeta(page=page, page_size=page_size, total=total),
     )
 
