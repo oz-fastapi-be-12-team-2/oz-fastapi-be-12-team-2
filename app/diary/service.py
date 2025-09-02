@@ -428,9 +428,10 @@ class DiaryService:
         # 태그 전체 교체 (기존 + 신규)
         await repository.replace_tags(diary, all_tag_names)
 
-
         # 업데이트된 태그 목록 반환
         updated_diary = await repository.get_by_id(diary_id)
+        if updated_diary is None:
+            return []
         await updated_diary.fetch_related("tags", "tags__diaries")
         updated_tags = list(updated_diary.tags)
 
@@ -447,19 +448,22 @@ class DiaryService:
         if not diary:
             raise ValueError("일기를 찾을 수 없습니다.")
 
-        # 기존 태그명 가져오기
-        existing_tags = getattr(diary, "tags", [])
-        existing_tag_names = {getattr(tag, "name", "") for tag in existing_tags}
+        # 기존 태그명 가져오기 (relation manager → list 변환)
+        existing_tags = list(diary.tags)
+        existing_tag_names = {tag.name for tag in existing_tags}
 
-        # 제거할 태그명들 빼기
+        # 제거할 태그 빼기
         remaining_tag_names = list(existing_tag_names - set(tag_names))
 
-        # 태그 전체 교체 (제거 후 남은 것들)
+        # 태그 전체 교체
         await repository.replace_tags(diary, remaining_tag_names)
 
-        # 업데이트된 태그 목록 반환
+        # 업데이트된 태그 목록 반환 (tags__diaries까지 prefetch)
         updated_diary = await repository.get_by_id(diary_id)
-        updated_tags = getattr(updated_diary, "tags", [])
+        if updated_diary is None:
+            return []
+        await updated_diary.fetch_related("tags", "tags__diaries")
+        updated_tags = list(updated_diary.tags)
         return [to_tag_response(tag) for tag in updated_tags]
 
     @staticmethod
