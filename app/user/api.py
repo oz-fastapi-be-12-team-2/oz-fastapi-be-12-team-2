@@ -82,7 +82,24 @@ async def update_profile(
     for key, value in update_dict.items():
         setattr(current_user, key, value)
     await current_user.save()
-    return current_user
+
+    notif = await UserNotification.get_or_none(
+        user_id=current_user.id
+    ).prefetch_related("notification")
+
+    notification_type = notif.notification.notification_type if notif else None
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "nickname": current_user.nickname,
+        "username": current_user.username,
+        "phonenumber": current_user.phonenumber,
+        "created_at": current_user.created_at,
+        "updated_at": current_user.updated_at,
+        "receive_notifications": current_user.receive_notifications,
+        "notification_type": notification_type,
+    }
 
 
 # 알림 설정 수정

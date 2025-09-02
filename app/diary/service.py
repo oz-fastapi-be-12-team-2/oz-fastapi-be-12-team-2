@@ -375,7 +375,9 @@ class DiaryService:
             return []
 
         # 태그 정보가 이미 prefetch되어 있어야 함
-        tags = getattr(diary, "tags", [])
+        # tags = getattr(diary, "tags", [])
+        await diary.fetch_related("tags__diaries")
+        tags = list(diary.tags)
         return [to_tag_response(tag) for tag in tags]
 
     @staticmethod
