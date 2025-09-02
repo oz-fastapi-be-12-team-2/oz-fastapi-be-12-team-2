@@ -9,6 +9,7 @@ from typing import Any, Dict
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
 from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
@@ -117,6 +118,7 @@ app.include_router(tag_router)
 app.include_router(user_router)
 app.include_router(diary_router)
 app.include_router(notification_router)
+app.mount("/tools", StaticFiles(directory="tools"), name="tools")
 
 
 # 기본 엔드포인트
