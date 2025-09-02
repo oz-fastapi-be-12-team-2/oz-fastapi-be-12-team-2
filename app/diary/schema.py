@@ -115,10 +115,11 @@ class DiaryUpdate(DiaryBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-    user_id: int
     emotion_analysis_report: Optional[DiaryEmotionResponse] = None
-    tags: List[str] = Field(default_factory=list, description="태그 목록")
-    image_urls: List[str] = Field(default_factory=list, description="이미지 URL 목록")
+    tags: Optional[List[str]] = Field(default_factory=list, description="태그 목록")
+    image_urls: Optional[List[str]] = Field(
+        default_factory=list, description="이미지 URL 목록"
+    )
 
     @field_validator("image_urls", mode="before")
     @classmethod

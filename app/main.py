@@ -1,12 +1,15 @@
+# app/main.py
 from __future__ import annotations
 
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from typing import Any, Dict
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
 from tortoise import Tortoise
 from tortoise.exceptions import DBConnectionError
 
@@ -53,17 +56,55 @@ async def lifespan(app: FastAPI):
 
 
 # ─────────────────────────────────────────────────────────────
+# FastAPI 상속: openapi 오버라이드 (mypy 친화적)
+# ─────────────────────────────────────────────────────────────
+class App(FastAPI):
+    def openapi(self) -> Dict[str, Any]:
+        if self.openapi_schema:
+            return self.openapi_schema  # type: ignore[return-value]
+
+        schema = get_openapi(
+            title=self.title,
+            version=self.version,
+            description=self.description,
+            routes=self.routes,
+        )
+
+        security_schemes = schema.setdefault("components", {}).setdefault(
+            "securitySchemes", {}
+        )
+        security_schemes["BearerAuth"] = {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+        security_schemes["CookieAuth"] = {
+            "type": "apiKey",
+            "in": "cookie",
+            "name": "access_token",
+        }
+        # 전역 보안 요구사항: Bearer 또는 Cookie 중 하나면 OK
+        schema["security"] = [
+            {"BearerAuth": []},
+            {"CookieAuth": []},
+        ]
+
+        self.openapi_schema = schema
+        return schema
+
+
+# ─────────────────────────────────────────────────────────────
 # 앱 생성
 # ─────────────────────────────────────────────────────────────
-app = FastAPI(
+app = App(
     title="FastAPI with AI Service",
     description="Gemini API를 사용하는 FastAPI 애플리케이션",
     version="1.0.0",
     lifespan=lifespan,
-    swagger_ui_parameters={"persistAuthorization": True},  # Swagger에서 인증 유지
+    swagger_ui_parameters={"persistAuthorization": True},
 )
 
-# CORS (필요 시 환경변수로 제어)
+# CORS
 DEFAULT_ORIGINS = ["http://localhost", "http://localhost:3000", "http://127.0.0.1:3000"]
 EXTRA_ORIGINS = [
     o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()
@@ -126,24 +167,22 @@ app.openapi = custom_openapi  # type: ignore[method-assign]
 # ─────────────────────────────────────────────────────────────
 
 app.include_router(user_router)
-app.include_router(diary_router)
-app.include_router(tag_router)
 app.include_router(ai_router)
+app.include_router(tag_router)
+app.include_router(diary_router)
 app.include_router(notification_router)
+app.mount("/tools", StaticFiles(directory="tools"), name="tools")
+
 # 라우터 순서 변경
 
 
-# ─────────────────────────────────────────────────────────────
 # 기본 엔드포인트
-# ─────────────────────────────────────────────────────────────
 @app.get("/")
 def read_root():
     return {"message": "Gemini API를 사용하는 FastAPI 서버입니다."}
 
 
-# ─────────────────────────────────────────────────────────────
 # 로컬 실행 (uvicorn app.main:app --reload)
-# ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
 

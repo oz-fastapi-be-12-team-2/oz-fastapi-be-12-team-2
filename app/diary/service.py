@@ -62,7 +62,7 @@ def to_diary_response(diary) -> DiaryResponse:
         title=diary.title,
         content=diary.content,
         emotion_analysis_report=diary.emotion_analysis_report,
-        tags=[TagOut(name=getattr(t, "name", "")) for t in getattr(diary, "tags", [])],
+        tags=[TagOut(name=t.name) for t in getattr(diary, "tags", [])],
         image_urls=[
             DiaryImageOut(
                 url=getattr(
@@ -106,77 +106,46 @@ def _resolve_ai() -> Optional[DiaryEmotionService]:
         return None
 
 
-def _extract_main_emotion_from_report(rep_obj: Any) -> Optional[str]:
-    """
-    다양한 형태의 emotion_analysis_report에서 main_emotion만 안전하게 추출
-    - str(JSON), dict, BaseModel, None 모두 처리
-    """
-    if rep_obj is None:
-        rep_dict: Dict[str, Any] = {}
-    elif isinstance(rep_obj, str):
-        try:
-            parsed = json.loads(rep_obj)
-            rep_dict = parsed if isinstance(parsed, dict) else {}
-        except Exception:
-            rep_dict = {}
-    elif hasattr(rep_obj, "model_dump"):
-        rep_dict = cast(Dict[str, Any], rep_obj.model_dump())
-    elif isinstance(rep_obj, dict):
-        rep_dict = cast(Dict[str, Any], rep_obj)
-    else:
-        rep_dict = {}
-
-    ea: Any = rep_dict.get("emotion_analysis")
-    if isinstance(ea, dict):
-        me = ea.get("main_emotion")
-    return _norm_emotion(me)
-
-
 # ---------------------------------------------------------------------
 # 서비스 계층 (비즈니스 로직 담당)
 # 컨트롤러(api.py)와 DB(repository.py) 사이에서 중간 역할
 # ---------------------------------------------------------------------
 class DiaryService:
     @staticmethod
-    async def create(
-        payload: DiaryCreate,
-    ) -> DiaryResponse:
+    async def create(payload: DiaryCreate) -> DiaryResponse:
         """
-        1) 다이어리 생성(트랜잭션)
-        2) 태그/이미지 전체 교체 저장
-        3) 커밋 이후 AI 분석(가능하면) → main_emotion / emotion_analysis_report DB 반영
-        4) 최종 DiaryResponse 반환(태그/이미지/감정 포함)
+        1) 다이어리/태그/이미지 생성(단일 트랜잭션)
+        2) 커밋 후 AI 분석(있으면) → main_emotion / emotion_analysis_report 갱신
+        3) 최종 1회 프리패치 조회 → DiaryResponse 반환
         """
         ai = _resolve_ai()
 
-        # 1) 생성 + 관계 저장
-        async with in_transaction():
-            diary: Diary = await repository.create(payload)
-
+        # 1) 생성 + 관계 저장 (같은 커넥션으로 일관 처리)
+        async with in_transaction() as conn:
+            diary: Diary = await repository.create(payload, using_db=conn)
             if payload.tags:
-                # 레포지토리 시그니처에 맞춰 전달 (TagIn 리스트 or 이름 리스트)
-                await repository.replace_tags(diary, payload.tags)
+                await repository.replace_tags(diary, payload.tags, using_db=conn)
 
             if payload.image_urls:
-                await repository.replace_images(diary, payload.image_urls)
+                await repository.replace_images(
+                    diary, payload.image_urls, using_db=conn
+                )
 
-        # 3) 커밋 이후 AI 분석
+        # 2) 커밋 이후 AI 분석 (옵션)
         ai_result = None
-        # 2) 커밋 이후 AI 분석(선택)
         if ai and not payload.emotion_analysis_report:
             try:
-                # 타임아웃: 지연되면 감정분석만 생략하고 생성은 유지
                 with anyio.move_on_after(6) as scope:
                     req = DiaryEmotionRequest(
                         diary_content=payload.content,
                         user_id=payload.user_id,
                     )
                     ai_result = await ai.analyze_diary_emotion(req)
-
                     # DB 반영: main_emotion + emotion_analysis_report
                     await repository.update_partially(
                         diary,
                         {
+                            "main_emotion": getattr(ai_result, "main_emotion", None),
                             "emotion_analysis_report": to_dict(ai_result),
                         },
                     )
@@ -188,21 +157,16 @@ class DiaryService:
             except Exception as e:
                 logger.logger.warning("AI 분석 실패(생성은 유지): %s", e)
 
-        resp = await repository.get_by_id(diary.id)
-        trans_resp = to_diary_response(resp)
-        trans_resp.tags = [
-            TagOut(name=(t.name if hasattr(t, "name") else str(t)).strip())
-            for t in (payload.tags or [])
-            if isinstance(getattr(t, "name", t), str)
-            and str(getattr(t, "name", t)).strip()
-        ]
-        trans_resp.image_urls = [
-            DiaryImageOut(url=u, order=i + 1) for i, u in enumerate(payload.image_urls)
-        ]
-        if ai_result is not None:
-            trans_resp.emotion_analysis_report = ai_result
+        # 3) 최종 1회만 DB 조회(태그/이미지/유저 프리패치)
+        fresh = await repository.get_by_id(diary.id)
+        resp = to_diary_response(fresh)
 
-        return trans_resp
+        # 방금 AI 저장이 반영되지 않았을 가능성까지 보정
+        if ai_result is not None:
+            resp.main_emotion = getattr(ai_result, "main_emotion", resp.main_emotion)
+            resp.emotion_analysis_report = ai_result
+
+        return resp
 
     @staticmethod
     async def get(diary_id: int) -> Optional[DiaryResponse]:
@@ -221,6 +185,7 @@ class DiaryService:
         main_emotion: Optional[str] = None,
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
+        tag_keyword: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[List[DiaryResponse], int]:
@@ -234,62 +199,95 @@ class DiaryService:
             main_emotion=main_emotion,
             date_from=date_from,
             date_to=date_to,
+            tag_keyword=tag_keyword,
             page=page,
             page_size=page_size,
         )
         return [to_diary_response(r) for r in rows], total
 
     @staticmethod
-    async def update(diary_id: int, payload: DiaryUpdate) -> Optional[DiaryResponse]:
+    async def update(
+        origin_diary: DiaryResponse, payload: DiaryUpdate
+    ) -> Optional[DiaryResponse]:
         """
         다이어리 수정 서비스
         - 스칼라 필드만 부분 업데이트
         - tags / image_urls 는 '전체 교체' 정책
         - 최종 응답은 repository.to_response 로 일관 반환
         """
-        d = await repository.get_by_id(diary_id)
+        ai = _resolve_ai()
+
+        # 0) 대상 로드
+        d = await repository.get_by_id(origin_diary.id)
         if not d:
             return None
 
         # 1) 스칼라 부분 업데이트 패치 구성
         patch: Dict[str, Any] = {}
+
         if payload.title is not None:
             patch["title"] = payload.title
+
         if payload.content is not None:
+            # 내용이 변경되었을 때만 내용과 새 AI 분석 반영 (빈 문자열이면 초기화 처리)
             patch["content"] = payload.content
 
-        if payload.emotion_analysis_report is not None:
-            ea = payload.emotion_analysis_report
-            if hasattr(ea, "model_dump"):
-                patch["emotion_analysis_report"] = ea.model_dump()
-            elif isinstance(ea, dict):
-                patch["emotion_analysis_report"] = ea
-            else:
-                patch["emotion_analysis_report"] = (
-                    ea  # str/기타도 JSONField가 수용하면 그대로
-                )
+            # AI 분석 (옵션)
+            ai_result = None
+            if ai:
+                try:
+                    with anyio.move_on_after(6) as scope:
+                        req = DiaryEmotionRequest(
+                            diary_content=payload.content,
+                            user_id=origin_diary.user_id,
+                        )
+                        ai_result = await ai.analyze_diary_emotion(req)
+                        # DB 반영: main_emotion + emotion_analysis_report
+                        await repository.update_partially(
+                            d,
+                            {
+                                "main_emotion": getattr(
+                                    ai_result, "main_emotion", None
+                                ),
+                                "emotion_analysis_report": to_dict(ai_result),
+                            },
+                        )
+
+                    if scope.cancelled_caught:
+                        logger.logger.warning(
+                            "AI 분석 타임아웃: 감정분석 생략(생성은 유지)"
+                        )
+                except Exception as e:
+                    logger.logger.warning("AI 분석 실패(생성은 유지): %s", e)
 
         if patch:
             d = await repository.update_partially(d, patch)
-        # 2) 관계 전체 교체
+
+        # 2) 관계 전체 교체 (None=미변경)
         if payload.tags is not None:
             await repository.replace_tags(d, payload.tags)
 
         if payload.image_urls is not None:
             await repository.replace_images(d, payload.image_urls)
+
+        # 3) 응답 변환
         trans_resp = to_diary_response(d)
-        trans_resp.tags = [
-            TagOut(name=(t.name if hasattr(t, "name") else str(t)).strip())
-            for t in (payload.tags or [])
-            if isinstance(getattr(t, "name", t), str)
-            and str(getattr(t, "name", t)).strip()
-        ]
-        trans_resp.image_urls = [
-            DiaryImageOut(url=u, order=i + 1) for i, u in enumerate(payload.image_urls)
-        ]
-        print("service.payload", payload)
-        print("service.d", trans_resp)
-        # 3) 최종 응답(태그/이미지/감정 포함)
+
+        # 전달된 경우에만 응답의 태그/이미지 오버라이드
+        if payload.tags is not None:
+            trans_resp.tags = [
+                TagOut(name=(t.name if hasattr(t, "name") else str(t)).strip())
+                for t in payload.tags
+                if isinstance(getattr(t, "name", t), str)
+                and str(getattr(t, "name", t)).strip()
+            ]
+
+        if payload.image_urls is not None:
+            urls: List[str] = list(payload.image_urls)  # mypy: 확실히 List[str]로
+            trans_resp.image_urls = [
+                DiaryImageOut(url=u, order=i + 1) for i, u in enumerate(urls)
+            ]
+
         return trans_resp
 
     @staticmethod

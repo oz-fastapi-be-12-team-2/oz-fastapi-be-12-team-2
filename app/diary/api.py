@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import List, Optional
+from typing import List, Optional, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import (
@@ -11,7 +11,9 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     UploadFile,
+    status,
 )
 
 from app.diary.model import MainEmotionType
@@ -27,7 +29,7 @@ from app.diary.service import DiaryService
 from app.files.service import CloudinaryService
 from app.tag.schema import TagListResponse
 from app.user.auth import get_current_user
-from app.user.model import User
+from app.user.model import User, UserRole
 
 # ---------------------------------------------------------------------
 # 다이어리 API 라우터
@@ -62,7 +64,6 @@ def _as_list_item(x: object) -> DiaryListItem:
             created_at=x.created_at,
         )
 
-    # ORM-like: duck typing
     return DiaryListItem(
         id=getattr(x, "id"),
         user_id=getattr(x, "user_id"),
@@ -70,6 +71,62 @@ def _as_list_item(x: object) -> DiaryListItem:
         main_emotion=getattr(x, "main_emotion", None),
         created_at=getattr(x, "created_at"),
     )
+
+
+# ---------------------------------------------------------------------
+# 권한 결정
+# ---------------------------------------------------------------------
+# 다이어리 리스트 조회 권한 설정
+def resolve_list_scope_or_raise(
+    *,
+    role: UserRole,
+    current_user_id: int,
+    user_id_param: Optional[int],
+) -> Optional[int]:
+    """다이어리 '목록' 조회 시 effective_user_id를 결정. 불가하면 403."""
+    if user_id_param is not None:
+        if role == UserRole.USER:
+            if user_id_param != current_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"{role} 권한은 본인 다이어리만 조회할 수 있습니다.",
+                )
+            return current_user_id
+        elif role in (UserRole.STAFF, UserRole.SUPERUSER):
+            return user_id_param
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="권한이 없습니다."
+            )
+    # user_id_param is None
+    if role == UserRole.SUPERUSER:
+        return None  # 전체 조회 허용
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"{role} 권한에서는 'user_id' 없이 조회할 수 없습니다. 예: /diaries?user_id=123",
+    )
+
+
+# 다이어리 단건 조회 권한 설정
+def ensure_can_read_diary_or_raise(
+    *, role: UserRole, current_user_id: int, diary_owner_id: int
+) -> None:
+    if role == UserRole.USER and current_user_id != diary_owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{role} 권한은 본인 다이어리만 조회할 수 있습니다.",
+        )
+
+
+# 다이어리 수정, 삭제 권한 설정
+def ensure_can_modify_diary_or_raise(
+    *, current_user_id: int, diary_owner_id: int
+) -> None:
+    if current_user_id != diary_owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인 다이어리만 수정/삭제할 수 있습니다.",
+        )
 
 
 # ---------------------------------------------------------------------
@@ -84,9 +141,9 @@ async def create_diary(
     images: Optional[List[UploadFile]] = File(None),
     current_user: User = Depends(get_current_user),
 ):
-    # opts = UploadImageOptions(folder="diary")
+
     image_urls = await CloudinaryService.upload_images_to_urls(images)
-    print("api.image_urls", image_urls)
+
     payload = DiaryCreate(
         user_id=current_user.id,
         emotion_analysis_report=None,
@@ -108,7 +165,7 @@ async def create_diary(
     response_model=DiaryResponse,
     response_model_exclude_none=True,
 )
-async def get_diary(diary_id: int):
+async def get_diary(diary_id: int, current_user: User = Depends(get_current_user)):
     """
     다이어리 단건 조회
     - Path Param: diary_id (조회할 다이어리 ID)
@@ -117,6 +174,14 @@ async def get_diary(diary_id: int):
     res = await DiaryService.get(diary_id)
     if not res:
         raise HTTPException(status_code=404, detail="Diary not found")
+    owner_id_opt: Optional[int] = getattr(res, "user_id", None)
+    owner_id = cast(int, owner_id_opt)
+    ensure_can_read_diary_or_raise(
+        role=current_user.user_roles,
+        current_user_id=current_user.id,
+        diary_owner_id=owner_id,
+    )
+
     return res
 
 
@@ -131,35 +196,50 @@ async def get_diary(diary_id: int):
 )
 async def list_diaries(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
-    # ✅ Enum으로 검증 ('긍정'/'부정'/'중립' 등) — 미지정 시 None
     main_emotion: Optional[MainEmotionType] = Query(
         None, description="주요 감정 라벨로 필터링"
     ),
     date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
     date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
+    tag_keyword: Optional[str] = Query(None, description="태그 검색어"),
     page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
     page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     다이어리 목록 조회 (페이징)
     - Query Params: user_id, main_emotion, date_from, date_to, page, page_size
-    - Response: DiaryListResponse (items[list[DiaryListItem]] + meta)
+    - user_id가 있으면:
+        USER: 본인 ID와 일치할 때만 허용
+        STAFF: 허용(특정 사용자 조회)
+        SUPERUSER: 허용
+    - user_id가 없으면:
+        USER/STAFF: 불가
+        SUPERUSER: 전체 조회 허용
     """
-    # Service 결과는 구현에 따라 ORM / DiaryResponse / DiaryListItem 등일 수 있음
+    # 1) 권한별 user scope 결정
+    role = current_user.user_roles
+    effective_user_id = resolve_list_scope_or_raise(
+        role=role,
+        current_user_id=current_user.id,
+        user_id_param=user_id,
+    )
+
     raw_items, total = await DiaryService.list(
-        user_id=user_id,
+        user_id=effective_user_id,
         main_emotion=(
             main_emotion.value
             if isinstance(main_emotion, MainEmotionType)
             else main_emotion
         ),
+        tag_keyword=tag_keyword,
         date_from=date_from,
         date_to=date_to,
         page=page,
         page_size=page_size,
     )
 
-    # ✅ 어떤 타입이 오든 리스트 요약으로 변환하여 mypy 에러 제거
+    # 어떤 타입이 오든 리스트 요약으로 변환하여 mypy 에러 제거
     items: list[DiaryListItem] = [_as_list_item(it) for it in (raw_items or [])]
 
     return DiaryListResponse(
@@ -177,16 +257,56 @@ async def list_diaries(
     response_model=DiaryResponse,
     response_model_exclude_none=True,
 )
-async def update_diary(diary_id: int, payload: DiaryUpdate):
-    """
-    다이어리 수정 (부분 수정 가능)
-    - Path Param: diary_id (수정할 다이어리 ID)
-    - Request Body: DiaryUpdate (title, content, main_emotion 등 일부만 보내도 됨)
-    - Response: 수정된 DiaryResponse
-    """
-    res = await DiaryService.update(diary_id, payload)
-    if not res:
+async def update_diary(
+    diary_id: int,
+    request: Request,  # ← 원시 폼 접근용
+    title: str = Form(...),
+    content: str = Form(...),
+    tags: Optional[List[str]] = Form(None),  # None=미변경, []=초기화, ['a','b']=교체
+    current_user: User = Depends(get_current_user),
+):
+    # 1) 소유자 확인
+    cur = await DiaryService.get(diary_id)
+    if not cur:
         raise HTTPException(status_code=404, detail="Diary not found")
+    owner_id = getattr(cur, "user_id", None)
+    if owner_id is None:
+        raise HTTPException(status_code=500, detail="일기 데이터에 user_id가 없습니다.")
+    ensure_can_modify_diary_or_raise(
+        current_user_id=current_user.id, diary_owner_id=owner_id
+    )
+
+    # 2) 원시 폼에서 images 직접 파싱 (문자열/빈 값은 무시)
+    form = await request.form()
+    raw_images = (
+        form.getlist("images") if "images" in form else []
+    )  # List[UploadFile | str | ...]
+    valid_files: List[UploadFile] = []
+    for x in raw_images:
+        if isinstance(x, UploadFile) and x.filename:
+            valid_files.append(x)
+
+    image_urls: Optional[List[str]] = None  # 기본: 미변경
+    if valid_files:
+        image_urls = await CloudinaryService.upload_images_to_urls(valid_files)
+
+    # 3) 태그 정리
+    tags_payload: Optional[List[str]]
+    if tags is None or tags == [""]:
+        tags_payload = None
+    else:
+        tags_payload = [t.strip() for t in tags if t and t.strip()]  # []면 전체 제거
+
+    # 4) 업데이트 페이로드
+    payload = DiaryUpdate(
+        title=title,
+        content=content,
+        image_urls=image_urls,  # None=미변경, [..]=교체
+        tags=tags_payload,  # None=미변경, []=초기화
+    )
+
+    # 5) 업데이트 실행
+    res = await DiaryService.update(cur, payload)
     return res
 
 
@@ -195,16 +315,26 @@ async def update_diary(diary_id: int, payload: DiaryUpdate):
 # DELETE /diaries/{diary_id}
 # ---------------------------------------------------------------------
 @router.delete("/{diary_id}", status_code=204)
-async def delete_diary(diary_id: int):
+async def delete_diary(diary_id: int, current_user: User = Depends(get_current_user)):
     """
     다이어리 삭제
     - Path Param: diary_id (삭제할 다이어리 ID)
     - Response: 없음 (204 No Content)
     """
+    cur = await DiaryService.get(diary_id)
+    if not cur:
+        raise HTTPException(status_code=404, detail="Diary not found")
+
+    diary_owner_id = getattr(cur, "user_id", None)
+    owner_id = cast(int, diary_owner_id)
+
+    ensure_can_modify_diary_or_raise(
+        current_user_id=current_user.id, diary_owner_id=owner_id
+    )
+
     ok = await DiaryService.delete(diary_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Diary not found")
-    # FastAPI는 204에서 본문을 무시하므로 명시적으로 None 반환
     return None
 
 
@@ -217,18 +347,24 @@ async def stats_summary(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
     date_from: Optional[datetime] = Query(None, description="조회 시작일"),
     date_to: Optional[datetime] = Query(None, description="조회 종료일"),
-    inferred: bool = Query(
-        True, description="True: main_emotion 미지정 시 emotion_analysis로 추론"
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     감정 통계 요약
     - Query Params: user_id, date_from, date_to, inferred
     - Response: 감정별 카운트 딕셔너리 (예: {"긍정": 3, "부정": 1, "중립": 2})
     """
+    # 1) 권한별 user scope 결정
+    role = current_user.user_roles
+    effective_user_id = resolve_list_scope_or_raise(
+        role=role,
+        current_user_id=current_user.id,
+        user_id_param=user_id,
+    )
+
     return {
         "items": await DiaryService.emotion_stats(
-            user_id=user_id,
+            user_id=effective_user_id,
             date_from=date_from,
             date_to=date_to,
         )
@@ -240,6 +376,7 @@ async def stats_daily(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
     date_to: Optional[date] = Query(None, description="조회 기준일 (YYYY-MM-DD)"),
     days: int = Query(7, ge=1, le=365, description="최근 N일 (기본 7, 오늘 포함)"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     - date_to가 주어지면: [date_to - (days-1) ~ date_to] 범위 일간
@@ -248,6 +385,14 @@ async def stats_daily(
     - 반환: {"period":"daily","from":YYYY-MM-DD,"to":YYYY-MM-DD,"items":[...]}
     """
     zone = ZoneInfo("Asia/Seoul")
+
+    # 1) 권한별 user scope 결정
+    role = current_user.user_roles
+    effective_user_id = resolve_list_scope_or_raise(
+        role=role,
+        current_user_id=current_user.id,
+        user_id_param=user_id,
+    )
 
     # 기준일 결정(없으면 타임존 기준 오늘)
     today = datetime.now(zone).date()
@@ -260,7 +405,7 @@ async def stats_daily(
 
     return {
         "items": await DiaryService.emotion_stats(
-            user_id=user_id,
+            user_id=effective_user_id,
             date_from=dt_from,
             date_to=dt_to,
         )
