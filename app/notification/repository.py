@@ -1,7 +1,8 @@
+from fastapi import HTTPException
 from tortoise.transactions import in_transaction
 
 from app.notification.model import Notification, NotificationType
-from app.user.model import User
+from app.user.model import User, UserNotification
 
 
 async def create_notification(
@@ -14,51 +15,75 @@ async def create_notification(
     notification = await Notification.create(
         content=content, notification_type=notification_type
     )
-    await notification.user.add(*users)
+    await notification.users.add(*users)
     return notification
 
 
-async def get_notifications_for_user(user_id: int) -> list[Notification]:
-    user = await User.get(id=user_id)
-    return await user.notifications.all()
+async def get_all_notifications() -> list[Notification]:
+    """
+    알림(Notification) 테이블의 모든 정의 데이터 조회
+    """
+    return await Notification.all().order_by("weekday", "notification_type")
+
+
+# 알림-유저 조인 테이블 조회
+async def get_user_notifications() -> list[UserNotification]:
+    return await UserNotification.all()
+
+
+# 타입 힌팅 수정(list[Notification] -> Notification | None)
+async def get_notifications_for_user(user_id: int) -> Notification:
+    # 유저 존재 여부 확인
+    exists = await User.exists(id=user_id)
+    if not exists:
+        raise HTTPException(status_code=404, detail="존재하지 않는 유저입니다.")
+
+    # 조인 테이블(UserNotification)에서 먼저 조회
+    user_notif = await UserNotification.get_or_none(user_id=user_id).prefetch_related(
+        "notification"
+    )
+    if not user_notif or not user_notif.notification:
+        raise HTTPException(status_code=404, detail="알림이 없습니다.")
+
+    return user_notif.notification
 
 
 async def replace_notifications(
     user: User,
-    notification_types: str,
+    names: list[str],
     using_db=None,
 ) -> None:
-    """
-    - user의 기존 notification_types 관계를 모두 제거하고
-    - 새로 전달받은 notification_types와 연결
 
-    Args:
-        user: User 객체
-        notification_types: NotificationType id 리스트 (예: [1,2,3])
-        using_db: 트랜잭션 연결 (서비스에서 in_transaction()으로 전달)
-    """
-    # 1) 문자열 정규화 + 빈 값 제거
-    norm_names = notification_types
+    # ① 호출자가 트랜잭션을 넘기면 그대로 사용, 없으면 내부에서 하나 만들고 '모든 쿼리'에 전달
+    if using_db is None:
+        async with in_transaction() as conn:
+            await _replace_notifications_impl(user, names, conn)
+    else:
+        await _replace_notifications_impl(user, names, using_db)
 
-    # 관계만 깔끔히 재구축하고 싶다면 트랜잭션으로 감싸도 OK
-    async with in_transaction():
-        # 2) 기존 관계 제거
 
-        await user.fetch_related("notifications")
-        await user.notifications.clear()
+async def _replace_notifications_impl(user: User, names: list[str], conn) -> None:
+    # 기존 관계 제거 (반드시 같은 커넥션)
+    await user.notifications.clear(using_db=conn)
 
-        if not norm_names:
-            return  # 더 할 일 없음
+    if not names:
+        return
 
-        # 3) 이미 존재하는 것 조회
-        if isinstance(norm_names, str):
-            names = [norm_names]
-        else:
-            names = list(norm_names)  # 이미 시퀀스면 그대로 리스트화
+    # 존재하는 것 조회 (같은 커넥션)
+    existing = await Notification.filter(notification_type__in=names).using_db(conn)
+    have = {n.notification_type for n in existing}
 
-        # 5) 최종 확정 세트 재조회(= 전부 '저장된' 객체)
-        final_objs = await Notification.filter(notification_type__in=names)
+    # 누락분 생성 (같은 커넥션)
+    missing = [x for x in names if x not in have]
+    if missing:
+        await Notification.bulk_create(
+            [Notification(notification_type=m) for m in missing],
+            using_db=conn,
+        )
 
-        # 6) 저장된 모델만 add (None 불가)
-        if final_objs:
-            await user.notifications.add(*final_objs)
+    # 최종 객체 재조회 (같은 커넥션)
+    final_objs = await Notification.filter(notification_type__in=names).using_db(conn)
+
+    # 조인 추가 (같은 커넥션)
+    if final_objs:
+        await user.notifications.add(*final_objs, using_db=conn)

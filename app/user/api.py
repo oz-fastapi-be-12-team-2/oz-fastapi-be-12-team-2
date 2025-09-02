@@ -4,6 +4,7 @@ from app.user.auth import create_access_token, create_refresh_token, get_current
 from app.user.model import User
 from app.user.schema import (
     LogoutResponse,
+    NotificationUpdateRequest,
     Token,
     UserCreate,
     UserLogin,
@@ -76,6 +77,23 @@ async def update_profile(
         setattr(current_user, key, value)
     await current_user.save()
     return current_user
+
+
+# 알림 설정 수정
+@router.patch("/me/notifications")
+async def update_my_notifications(
+    payload: NotificationUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    내 알림 설정 수정 (알림 수신 여부 + 알림 타입)
+    """
+    await UserService.update_notification_settings(
+        current_user=current_user,
+        notification_type=payload.notification_type,
+        receive=payload.receive_notifications,
+    )
+    return {"message": "알림 설정이 업데이트되었습니다."}
 
 
 # 내 계정 삭제

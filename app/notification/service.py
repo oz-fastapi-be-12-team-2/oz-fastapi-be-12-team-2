@@ -2,19 +2,31 @@ import os
 import smtplib
 from datetime import date, datetime, time
 from email.mime.text import MIMEText
+from typing import List
 
 from dotenv import load_dotenv
+from fastapi import HTTPException
 from solapi import SolapiMessageService  # type: ignore
 from solapi.model import RequestMessage  # type: ignore
 
 from app.diary.model import MainEmotionType
-from app.notification.model import NotificationType
-from app.notification.repository import create_notification
-from app.user.model import EmotionStats, PeriodType, User
+from app.notification import repository
+from app.notification.model import Notification, NotificationType
+from app.user.model import EmotionStats, PeriodType, User, UserNotification
 
 load_dotenv()
 
 TEST_MODE = False  # 기본값: 실제 발송
+
+
+# 알림 테이블 전체 조회
+async def list_notifications():
+    return await repository.get_all_notifications()
+
+
+# 유저-알림 조인 테이블 전체 조회
+async def list_user_notifications():
+    return await repository.get_user_notifications()
 
 
 async def check_weekly_negative_emotions(user_id: int) -> bool:
@@ -36,51 +48,78 @@ async def check_weekly_negative_emotions(user_id: int) -> bool:
     return stats is not None and stats.frequency >= 5
 
 
-async def send_notifications():
-
-    WEEKDAY_MESSAGES = {
-        0: "한 주의 시작, 많이 힘드셨죠? 하지만 잘 해내셨으니 앞으로도 잘 하실거에요! 💪",
-        1: "조금 지치셨나요? 남은 날들은 즐거운 일만 가득할 거에요. 🌿",
-        2: "벌써 반 이상 왔습니다! 조금만 더 힘내봐요. 📝",
-        3: "오늘도 많이 힘드셨죠? 내일만 지나면 주말이다! 힘든 마음을 챙겨보세요. 🧘",
-        4: "주말이 다가옵니다. 부정적 감정을 놓아주세요. 🎵",
-        5: "이번 주 부정적 감정이 많았다면, 주말에 휴식하세요. ☕",
-        6: "다음 주를 위해 감정을 정리하고 준비하세요. 🌸",
-    }
-
+async def get_notification_targets() -> List[tuple[User, str, NotificationType]]:
+    """
+    발송 대상 유저 + 메시지 + 알림 타입 리스트 반환
+    (유저-알람 조인 테이블을 오늘 요일/알람 타입 기준으로 업데이트)
+    """
     users = await User.filter(receive_notifications=True).all()
-    if users is None:
-        return None
+    targets = []
 
     today = date.today()
     weekday = today.weekday()
-    message = WEEKDAY_MESSAGES[weekday]
 
-    sent_notifications = []
     for user in users:
-        if await check_weekly_negative_emotions(user.id):
-            content = message
-            notification_type = user.notifications.__getattribute__("notification_type")
-            notification = await create_notification(
-                content=content,
-                notification_type=notification_type,
+        if not await check_weekly_negative_emotions(user.id):
+            continue
+
+        # 유저-알람 조인 조회
+        user_notif = await UserNotification.get_or_none(
+            user_id=user.id
+        ).prefetch_related("notification")
+
+        if not user_notif or not user_notif.notification:
+            # 유저가 아직 알림 타입을 선택하지 않은 경우 → 건너뛰기
+            continue
+
+        # 유저가 받을 알람 타입 결정
+        notif_type = user_notif.notification.notification_type
+
+        # 오늘 요일 + 타입에 맞는 마스터 알람 찾기
+        notif = await Notification.get_or_none(
+            weekday=weekday, notification_type=notif_type
+        )
+        if not notif:
+            raise HTTPException(
+                status_code=500,
+                detail=f"알람 마스터에 정의되지 않은 알림 (weekday={weekday}, type={notif_type})",
             )
 
-            # 테스트 모드에서는 프린트만 실행
-            if notification:
-                if TEST_MODE:
-                    print(f"[{notification_type.value}] to {user.nickname}: {message}")
-                else:
-                    if notification_type == NotificationType.PUSH:
-                        await send_push_notification(user, message)
-                    elif notification_type == NotificationType.SMS:
-                        await send_sms(user, message)
-                    elif notification_type == NotificationType.EMAIL:
-                        await send_email(user, message)
+        if user_notif:
+            # 이미 있으면 오늘 요일에 맞는 알람으로 교체
+            if user_notif.notification_id != notif.id:
+                user_notif.notification = notif
+                await user_notif.save()
+                print(f"🔄 UserNotification updated: user={user.id}, notif={notif.id}")
+        else:
+            # 없으면 새로 생성
+            user_notif = await UserNotification.create(
+                user=user,
+                notification=notif,
+            )
+            print(f"✅ UserNotification created: user={user.id}, notif={notif.id}")
 
-                sent_notifications.append(notification)
+        # 마스터 알람의 content 그대로 사용
+        message = notif.content
+        targets.append((user, message, notif.notification_type))
 
-    return sent_notifications
+    return targets
+
+
+async def send_notifications(targets: list[tuple[User, str, NotificationType]]):
+    sent = []
+    for user, message, notif_type in targets:
+        if TEST_MODE:
+            print(f"[{notif_type}] to {user.nickname}: {message}")
+        else:
+            if notif_type == NotificationType.PUSH:
+                await send_push_notification(user, message)
+            elif notif_type == NotificationType.SMS:
+                await send_sms(user, message)
+            elif notif_type == NotificationType.EMAIL:
+                await send_email(user, message)
+        sent.append({"user_id": user.id, "nickname": user.nickname})
+    return sent
 
 
 # SMS
