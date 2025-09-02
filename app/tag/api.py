@@ -150,8 +150,9 @@ async def search_diaries_by_tag_name(
     )
     # 해당 태그의 일기가 없는 경우 추가 예외 처리
     if total == 0:
-        raise HTTPException(status_code=404, detail=f"'{tag_name}' 태그가 붙은 일기가 없습니다.")
-
+        raise HTTPException(
+            status_code=404, detail=f"'{tag_name}' 태그가 붙은 일기가 없습니다."
+        )
 
     return TagDiaryListResponse(
         tag=tag,
