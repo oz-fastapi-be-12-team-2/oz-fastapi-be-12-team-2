@@ -444,55 +444,55 @@ async def get_diary_tags(diary_id: int):
 # 태그명으로 일기 검색 API (diary 모듈에서 제공)
 # GET /diaries/search?tags=tag1,tag2&user_id=1
 # ---------------------------------------------------------------------
-@router.get(
-    "/search",
-    response_model=DiaryListResponse,
-    response_model_exclude_none=True,
-)
-async def search_diaries_by_tags(
-    tags: Optional[str] = Query(
-        None, description="검색할 태그명들 (쉼표로 구분, 예: 'tag1,tag2')"
-    ),
-    user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
-    main_emotion: Optional[MainEmotionType] = Query(
-        None, description="주요 감정 라벨로 필터링"
-    ),
-    date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
-    date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
-    page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
-    page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
-):
-    """
-    태그명으로 일기 검색 (diary 모듈에서 제공)
-    - Query Params: tags (쉼표 구분), user_id, main_emotion, date_from, date_to, page, page_size
-    - Response: DiaryListResponse
-    """
-    # 태그 파싱
-    tag_names = []
-    if tags:
-        tag_names = [tag.strip() for tag in tags.split(",") if tag.strip()]
-
-    raw_items, total = await DiaryService.search_by_tags(
-        tag_names=tag_names,
-        user_id=user_id,
-        main_emotion=(
-            main_emotion.value
-            if isinstance(main_emotion, MainEmotionType)
-            else main_emotion
-        ),
-        date_from=date_from,
-        date_to=date_to,
-        page=page,
-        page_size=page_size,
-    )
-
-    # 어떤 타입이 오든 리스트 요약으로 변환
-    items: list[DiaryListItem] = [_as_list_item(it) for it in (raw_items or [])]
-
-    return DiaryListResponse(
-        items=items,
-        meta=PageMeta(page=page, page_size=page_size, total=total),
-    )
+# @router.get(
+#     "/search",
+#     response_model=DiaryListResponse,
+#     response_model_exclude_none=True,
+# )
+# async def search_diaries_by_tags(
+#     tags: Optional[str] = Query(
+#         None, description="검색할 태그명들 (쉼표로 구분, 예: 'tag1,tag2')"
+#     ),
+#     user_id: Optional[int] = Query(None, description="특정 사용자 ID로 필터링"),
+#     main_emotion: Optional[MainEmotionType] = Query(
+#         None, description="주요 감정 라벨로 필터링"
+#     ),
+#     date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
+#     date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
+#     page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
+#     page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
+# ):
+#     """
+#     태그명으로 일기 검색 (diary 모듈에서 제공)
+#     - Query Params: tags (쉼표 구분), user_id, main_emotion, date_from, date_to, page, page_size
+#     - Response: DiaryListResponse
+#     """
+#     # 태그 파싱
+#     tag_names = []
+#     if tags:
+#         tag_names = [tag.strip() for tag in tags.split(",") if tag.strip()]
+#
+#     raw_items, total = await DiaryService.search_by_tags(
+#         tag_names=tag_names,
+#         user_id=user_id,
+#         main_emotion=(
+#             main_emotion.value
+#             if isinstance(main_emotion, MainEmotionType)
+#             else main_emotion
+#         ),
+#         date_from=date_from,
+#         date_to=date_to,
+#         page=page,
+#         page_size=page_size,
+#     )
+#
+#     # 어떤 타입이 오든 리스트 요약으로 변환
+#     items: list[DiaryListItem] = [_as_list_item(it) for it in (raw_items or [])]
+#
+#     return DiaryListResponse(
+#         items=items,
+#         meta=PageMeta(page=page, page_size=page_size, total=total),
+#     )
 
 
 # ---------------------------------------------------------------------

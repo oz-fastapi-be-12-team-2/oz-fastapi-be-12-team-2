@@ -100,6 +100,7 @@ class DiaryEmotionService:
                 "reason": "JSON 파싱 실패",
             }
 
+    @classmethod
     def health_check(self) -> bool:
         """AI 서비스 상태 확인"""
         try:
