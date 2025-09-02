@@ -1,0 +1,30 @@
+# docker-compose.yml: 서버 배포 전용
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-diaryapi}
+      POSTGRES_USER: ${POSTGRES_USER:-diaryapi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-diaryapi}
+    volumes:
+      - /opt/diaryapi/postgres_data:/var/lib/postgresql/data
+
+  web:
+    # GitHub Actions에서 빌드/푸시한 이미지를 pull
+    image: ghcr.io/${GITHUB_OWNER}/${REPO_NAME}/web:${IMAGE_TAG:-latest}
+    env_file:
+      - /opt/diaryapi/.env           # 서버에 따로 저장해둔 운영용 .env
+    depends_on:
+      - db
+    # 프로덕션은 코드 바인드 마운트 제거(이미지로 실행)
+    # command는 이미지의 entrypoint/run.sh에 맞게 필요시 유지/수정
+    command: /app/scripts/run.sh
+    ports:
+      - "80:8000"
+    restart: unless-stopped
+
+volumes:
+      - /opt/diaryapi/postgres_data:/var/lib/postgresql/data
