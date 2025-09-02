@@ -24,7 +24,11 @@ class TagService:
             raise ValueError(f"이미 존재하는 태그명입니다: {payload.name}")
 
         tag = await repository.create(payload)
-        return to_tag_response(tag)
+        return TagResponse(
+            id=tag.id,
+            name=tag.name,
+            diary_count=0,  # 새 태그이므로 0으로 확정
+        )
 
     @staticmethod
     async def get(tag_id: int) -> Optional[TagResponse]:

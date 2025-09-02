@@ -143,15 +143,19 @@ async def search_diaries_by_tag_name(
             status_code=404, detail=f"'{tag_name}' 태그를 찾을 수 없습니다."
         )
 
-    diaries, total = await TagService.get_diaries_by_tag(
-        tag_id=tag.id,
+    diaries, total = await TagService.get_diaries_by_tag_name(
+        tag_name=tag.name,
         page=page,
         page_size=page_size,
     )
+    # 해당 태그의 일기가 없는 경우 추가 예외 처리
+    if total == 0:
+        raise HTTPException(status_code=404, detail=f"'{tag_name}' 태그가 붙은 일기가 없습니다.")
+
 
     return TagDiaryListResponse(
         tag=tag,
-        diaries=diaries,
+        diaries=list(diaries),
         meta=PageMeta(page=page, page_size=page_size, total=total),
     )
 

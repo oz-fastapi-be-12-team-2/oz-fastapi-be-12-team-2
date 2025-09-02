@@ -97,7 +97,7 @@ def to_tag_response(tag) -> TagResponse:
                 elif hasattr(diaries, "count"):
                     # 만약 아직 로드되지 않았다면 None 유지 (별도 쿼리 방지)
                     pass
-            except (TypeError, AttributeError):
+            except (TypeError, AttributeError) as e:
                 # TypeError: len()이나 hasattr 호출 시 타입 오류
                 # AttributeError: 예상하지 못한 속성 접근 오류
                 diary_count = None
