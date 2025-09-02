@@ -13,6 +13,7 @@ from tortoise.exceptions import DBConnectionError
 from app.ai.api import router as ai_router
 from app.diary.api import router as diary_router
 from app.notification.api import router as notification_router
+from app.notification.seed import seed_notifications
 from app.tag.api import router as tag_router
 from app.user.api import router as user_router
 from core.config import TORTOISE_ORM
@@ -33,6 +34,10 @@ async def lifespan(app: FastAPI):
             if generate_schemas:
                 await Tortoise.generate_schemas()
             print("✅ DB 연결 및 초기화 성공")
+
+            # Notification 시드 실행
+            await seed_notifications()
+
             break
         except DBConnectionError:
             if i == attempts:
@@ -113,17 +118,18 @@ def custom_openapi():
 
 
 # FastAPI.openapi는 “메서드”라서 재할당하면 안 된다고 해서 ignore 추가
-app.openapi = custom_openapi
+app.openapi = custom_openapi  # type: ignore[method-assign]
 
 
 # ─────────────────────────────────────────────────────────────
 # 라우터 등록
 # ─────────────────────────────────────────────────────────────
-app.include_router(ai_router)
-app.include_router(tag_router)
 app.include_router(user_router)
 app.include_router(diary_router)
+app.include_router(tag_router)
+app.include_router(ai_router)
 app.include_router(notification_router)
+# 라우터 순서 변경
 
 
 # ─────────────────────────────────────────────────────────────
