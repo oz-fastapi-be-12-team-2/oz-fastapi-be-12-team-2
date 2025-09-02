@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.user.auth import create_access_token, create_refresh_token, get_current_user
-from app.user.model import User
+from app.user.model import User, UserNotification
 from app.user.schema import (
     LogoutResponse,
     NotificationUpdateRequest,
@@ -53,6 +53,12 @@ async def logout(response: Response):
 # 내 프로필 조회
 @router.get("/me", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
+    notif = await UserNotification.get_or_none(
+        user_id=current_user.id
+    ).prefetch_related("notification")
+
+    notification_type = notif.notification.notification_type if notif else None
+
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -61,8 +67,8 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         "phonenumber": current_user.phonenumber,
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
-        "receive_notifications": True,  # 테스트용 기본값
-        "notifications": [],  # 테스트용 빈 리스트
+        "receive_notifications": current_user.receive_notifications,
+        "notification_type": notification_type,
     }
 
 

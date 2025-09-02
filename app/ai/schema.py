@@ -39,7 +39,6 @@ class EmotionStatsResponse(BaseModel):
     """감정 통계 응답"""
 
     user_id: int
-    period_type: str
     stats: Dict[str, int] = Field(..., description="감정별 빈도")
     total_count: int = Field(..., description="전체 일기 수")
     dominant_emotion: str = Field(..., description="주요 감정")

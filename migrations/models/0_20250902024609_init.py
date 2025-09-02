@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS "diary_tag" (
 CREATE INDEX IF NOT EXISTS "idx_diary_tag_diary_i_0fa63c" ON "diary_tag" ("diary_id");
 CREATE INDEX IF NOT EXISTS "idx_diary_tag_tag_id_5bea5d" ON "diary_tag" ("tag_id");
 CREATE INDEX IF NOT EXISTS "idx_diary_tag_diary_i_47c64b" ON "diary_tag" ("diary_id", "tag_id");
-COMMENT ON TABLE "diary_tag" IS 'Diary - Tag 조인 테이블.';
+COMMENT ON TABLE "diary_tag" IS 'Diary - Tag 조인 테이블';
 CREATE TABLE IF NOT EXISTS "notifications" (
     "id" BIGSERIAL NOT NULL PRIMARY KEY,
     "weekday" INT NOT NULL,
