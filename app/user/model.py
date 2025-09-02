@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 from tortoise import Model, fields
 
-from app.diary.model import MainEmotionType
 from app.shared.model import TimestampMixin
 
 if TYPE_CHECKING:
@@ -41,7 +40,7 @@ class User(TimestampMixin, Model):
     )
 
     # ✅ EmotionStats는 1:N의 역참조(ReverseRelation)여야 함
-    emotion_stats: fields.ReverseRelation["EmotionStats"]
+    # emotion_stats: fields.ReverseRelation["EmotionStats"]
 
     class Meta:
         table = "users"
@@ -51,20 +50,22 @@ class User(TimestampMixin, Model):
         return f"User(id={self.id}, email={self.email})"
 
 
-class EmotionStats(Model):
-    stat_id = fields.IntField(pk=True, auto_increment=True)
-    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
-        "models.User",
-        related_name="emotion_stats",  # ← User.emotion_stats 와 이름 일치
-        on_delete=fields.CASCADE,
-        index=True,
-    )
-    emotion_type = fields.CharEnumField(MainEmotionType)
-    frequency = fields.IntField()
-    created_at = fields.DatetimeField(auto_now_add=True)
-
-    class Meta:
-        table = "emotion_stats"
+#
+#
+# class EmotionStats(Model):
+#     stat_id = fields.IntField(pk=True, auto_increment=True)
+#     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+#         "models.User",
+#         related_name="emotion_stats",  # ← User.emotion_stats 와 이름 일치
+#         on_delete=fields.CASCADE,
+#         index=True,
+#     )
+#     emotion_type = fields.CharEnumField(MainEmotionType)
+#     frequency = fields.IntField()
+#     created_at = fields.DatetimeField(auto_now_add=True)
+#
+#     class Meta:
+#         table = "emotion_stats"
 
 
 # ---------------------------------------------------------------------

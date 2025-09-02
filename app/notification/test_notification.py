@@ -8,12 +8,11 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
-from app.diary.model import MainEmotionType
 from app.notification import service
 from app.notification.api import router as notification_router
 from app.notification.model import Notification, NotificationType
 from app.notification.seed import seed_notifications
-from app.user.model import EmotionStats, User, UserNotification
+from app.user.model import User, UserNotification
 
 pytestmark = pytest.mark.asyncio
 service.TEST_MODE = True
@@ -83,14 +82,14 @@ async def test_user() -> User:
     return user
 
 
-@pytest_asyncio.fixture
-async def test_emotionstat(test_user: User) -> EmotionStats:
-    stat = await EmotionStats.create(
-        user_id=test_user.id,
-        emotion_type=MainEmotionType.NEGATIVE,
-        frequency=5,
-    )
-    return stat
+# @pytest_asyncio.fixture
+# async def test_emotionstat(test_user: User) -> EmotionStats:
+#     stat = await EmotionStats.create(
+#         user_id=test_user.id,
+#         emotion_type=MainEmotionType.NEGATIVE,
+#         frequency=5,
+#     )
+#     return stat
 
 
 # @pytest.mark.asyncio
