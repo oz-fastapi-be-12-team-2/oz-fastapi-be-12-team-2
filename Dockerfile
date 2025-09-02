@@ -23,6 +23,7 @@ RUN uv sync --all-packages
 # 애플리케이션 코드 복사
 COPY ./app ./app
 COPY ./core ./core
+COPY ./tools ./tools
 
 # 포트 설정
 EXPOSE 8000
