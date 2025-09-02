@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 
 from core.exceptions import AIServiceError
 
-from .schema import DiaryEmotionRequest, DiaryEmotionResponse, EmotionStatsResponse
+from .schema import DiaryEmotionRequest, DiaryEmotionResponse
 from .service import DiaryEmotionService
 
 router = APIRouter(prefix="/ai", tags=["AI - 감정 분석"])
@@ -74,24 +74,24 @@ async def test_emotion_analysis():
     return await analyze_diary_emotion(request)
 
 
-@router.get("/stats/{user_id}")
-async def get_emotion_stats(user_id: int, period: str = "daily"):
-    """
-    사용자 감정 통계 조회
-    TODO: 실제 EmotionStats 모델과 연동 필요
-    """
-    from typing import Dict
+# @router.get("/stats/{user_id}")
+# async def get_emotion_stats(user_id: int, period: str = "daily"):
+#     """
+#     사용자 감정 통계 조회
+#     TODO: 실제 EmotionStats 모델과 연동 필요
+#     """
+#     from typing import Dict
 
-    mock_stats: Dict[str, int] = {
-        "긍정": 15,
-        "부정": 8,
-        "중립": 5,
-    }
+#     mock_stats: Dict[str, int] = {
+#         "긍정": 15,
+#         "부정": 8,
+#         "중립": 5,
+#     }
 
-    return EmotionStatsResponse(
-        user_id=user_id,
-        period_type=period,
-        stats=mock_stats,
-        total_count=28,
-        dominant_emotion="긍정",
-    )
+#     return EmotionStatsResponse(
+#         user_id=user_id,
+#         period_type=period,
+#         stats=mock_stats,
+#         total_count=28,
+#         dominant_emotion="긍정",
+#     )
