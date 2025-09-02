@@ -118,11 +118,6 @@ app.add_middleware(
 )
 
 
-# 라우터
-app.include_router(ai_router)
-app.include_router(tag_router)
-
-
 # ─────────────────────────────────────────────────────────────
 # Swagger 보안 스키마 (Bearer + Cookie)
 # ─────────────────────────────────────────────────────────────
@@ -171,9 +166,9 @@ app.openapi = custom_openapi  # type: ignore[method-assign]
 # 라우터 등록
 # ─────────────────────────────────────────────────────────────
 app.include_router(user_router)
-app.include_router(diary_router)
-app.include_router(tag_router)
 app.include_router(ai_router)
+app.include_router(tag_router)
+app.include_router(diary_router)
 app.include_router(notification_router)
 app.mount("/tools", StaticFiles(directory="tools"), name="tools")
 
