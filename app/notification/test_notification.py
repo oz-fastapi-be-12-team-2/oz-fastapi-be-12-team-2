@@ -21,6 +21,7 @@ service.TEST_MODE = True
 
 # TODO : test coverage 올리기 -- 현재 60%
 
+
 @pytest_asyncio.fixture
 async def app() -> AsyncGenerator[FastAPI, None]:
     app = FastAPI(title="Test Notification API")
