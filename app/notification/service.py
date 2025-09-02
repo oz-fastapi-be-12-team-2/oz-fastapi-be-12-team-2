@@ -1,6 +1,6 @@
 import os
 import smtplib
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from email.mime.text import MIMEText
 from typing import List
 
@@ -10,6 +10,7 @@ from solapi import SolapiMessageService  # type: ignore
 from solapi.model import RequestMessage  # type: ignore
 
 from app.diary.model import MainEmotionType
+from app.diary.service import DiaryService
 from app.notification import repository
 from app.notification.model import Notification, NotificationType
 from app.user.model import EmotionStats, PeriodType, User, UserNotification
@@ -35,17 +36,16 @@ async def check_weekly_negative_emotions(user_id: int) -> bool:
     """
 
     today = date.today()
-    start = datetime.combine(today, time.min)  # 00:00:00
+    monday = today - timedelta(days=today.weekday())
+    start = datetime.combine(monday, time.min)  # 00:00:00
     end = datetime.combine(today, time.max)  # 23:59:59.999999
 
-    stats = await EmotionStats.get_or_none(
+    stats = await DiaryService.emotion_stats(
         user_id=user_id,
-        period_type=PeriodType.WEEKLY.value,
-        created_at__gte=start,
-        created_at__lt=end,
-        emotion_type=MainEmotionType.NEGATIVE.value,
+        date_from=start,
+        date_to=end,
     )
-    return stats is not None and stats.frequency >= 5
+    return stats.get("부정", 0) >= 5
 
 
 async def get_notification_targets() -> List[tuple[User, str, NotificationType]]:
@@ -68,9 +68,9 @@ async def get_notification_targets() -> List[tuple[User, str, NotificationType]]
             user_id=user.id
         ).prefetch_related("notification")
 
-        if not user_notif or not user_notif.notification:
-            # 유저가 아직 알림 타입을 선택하지 않은 경우 → 건너뛰기
-            continue
+        # if not user_notif or not user_notif.notification:
+        #     # 유저가 아직 알림 타입을 선택하지 않은 경우 → 건너뛰기
+        #     continue
 
         # 유저가 받을 알람 타입 결정
         notif_type = user_notif.notification.notification_type
