@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mini Diary</title>
+    <style>
+      :root {
+        --bg: #f7fafc;
+        --fg: #0f172a;
+        --muted: #64748b;
+        --card: #ffffff;
+        --line: #e2e8f0;
+        --accent: #2563eb;
+        --ok: #16a34a;
+        --err: #dc2626;
+        --input: #ffffff;
+        --btn: #f1f5f9;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 24px auto;
+        padding: 0 16px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 10px;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 0 0 8px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 8px 0 4px;
+      }
+      input[type="text"],
+      input[type="password"],
+      input[type="number"] {
+        width: 100%;
+        background: var(--input);
+        color: var(--fg);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      .btn {
+        border: 1px solid var(--line);
+        background: var(--btn);
+        color: var(--fg);
+        border-radius: 10px;
+        padding: 10px 14px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .btn:hover {
+        background: #e2e8f0;
+        border-color: #cbd5e1;
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn.primary:hover {
+        background: #1d4ed8;
+      }
+      .btn.warn {
+        background: #fee2e2;
+        border-color: #fecaca;
+        color: #7f1d1d;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .sep {
+        height: 1px;
+        background: var(--line);
+        margin: 12px 0;
+      }
+      .list {
+        display: grid;
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .item {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        background: #f8fafc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .pill {
+        display: inline-block;
+        background: #e0f2fe;
+        border: 1px solid #93c5fd;
+        color: #0c4a6e;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .pill.ai {
+        background: #f3e8ff;
+        border: 1px solid #e9d5ff;
+        color: #6b21a8;
+      }
+      .right {
+        margin-left: auto;
+      }
+      pre {
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px;
+        overflow: auto;
+      }
+      img.diary {
+        max-width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+      }
+      .chart {
+        display: grid;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .bar {
+        height: 18px;
+        border-radius: 8px;
+        background: #e2e8f0;
+        position: relative;
+        overflow: hidden;
+      }
+      .bar > span {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 0;
+      }
+      .bar.pos > span {
+        background: #22c55e;
+      }
+      .bar.neg > span {
+        background: #ef4444;
+      }
+      .bar.neu > span {
+        background: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="row">
+          <h1 style="margin: 0">Mini Diary</h1>
+          <span id="status" class="muted"></span>
+        </div>
+        <div class="row">
+          <button id="btn-logout" class="btn warn" style="display: none">
+            로그아웃
+          </button>
+        </div>
+      </div>
+
+      <!-- 로그인 -->
+      <div id="view-login" class="card" style="display: none">
+        <h2>로그인</h2>
+        <label>Base URL</label>
+        <input id="base" type="text" placeholder="예: http://localhost:8000" />
+        <div class="row">
+          <div style="flex: 1 1 260px">
+            <label>이메일</label><input id="email" type="text" />
+          </div>
+          <div style="flex: 1 1 260px">
+            <label>비밀번호</label><input id="password" type="password" />
+          </div>
+        </div>
+        <div class="row" style="margin-top: 10px">
+          <button id="btn-login" class="btn primary">로그인</button>
+        </div>
+        <div class="muted" style="margin-top: 8px">
+          로그인 엔드포인트: <code>/users/login</code> → {access_token}
+        </div>
+        <div
+          id="login-error"
+          class="muted"
+          style="color: var(--err); margin-top: 8px"
+        ></div>
+      </div>
+
+      <!-- 목록 -->
+      <div id="view-list" class="card" style="display: none">
+        <div class="row" style="margin-bottom: 10px">
+          <label for="list-user">user_id</label>
+          <input id="list-user" type="text" style="width: 120px" />
+          <label for="list-size">page_size</label>
+          <input id="list-size" type="number" value="20" style="width: 80px" />
+          <label for="list-page">page</label>
+          <input id="list-page" type="number" value="1" style="width: 60px" />
+          <button id="btn-refresh" class="btn">새로고침</button>
+
+          <!-- 🔎 검색바 (태그 키워드) -->
+          <span style="width: 16px"></span>
+          <label for="list-search">태그</label>
+          <input
+            id="list-search"
+            type="text"
+            placeholder="예: 일상"
+            style="width: 160px"
+          />
+          <button id="btn-search" class="btn">검색</button>
+          <button id="btn-clear" class="btn">초기화</button>
+        </div>
+
+        <div id="list" class="list" style="margin-top: 12px"></div>
+
+        <!-- 통계 -->
+        <div class="card" style="margin-top: 12px">
+          <div
+            class="row"
+            style="justify-content: space-between; align-items: center"
+          >
+            <h2 style="margin: 0">통계</h2>
+            <div class="row">
+              <button id="btn-stats-today" class="btn">오늘 요약</button>
+              <button id="btn-stats-7" class="btn">최근 7일 요약</button>
+            </div>
+          </div>
+          <div class="muted" style="margin-top: 6px">
+            상단 user_id를 사용합니다. 미지정 시 권한 정책에 따름.
+          </div>
+          <div id="stats-out" style="margin-top: 10px"></div>
+        </div>
+
+        <div class="row" style="margin: 12px 2px">
+          <button id="btn-prev" class="btn">← 이전</button>
+          <button id="btn-next" class="btn">다음 →</button>
+          <span id="pager" class="muted"></span>
+        </div>
+      </div>
+
+      <!-- 상세 -->
+      <div id="view-detail" class="card" style="display: none"></div>
+    </div>
+
+    <script>
+      const AUTH_LOGIN_PATH = "/users/login";
+      const state = {
+        base: localStorage.getItem("diary.base") || "",
+        token: localStorage.getItem("diary.token") || "",
+      };
+      const $ = (id) => document.getElementById(id);
+      const show = (el, on) => (el.style.display = on ? "" : "none");
+      const fmt = (s) => (s == null ? "" : String(s));
+
+      function setStatus() {
+        $("status").textContent = state.base
+          ? `· ${state.base} ${state.token ? "(로그인됨)" : "(로그아웃 상태)"}`
+          : "";
+        show($("btn-logout"), !!state.token);
+      }
+      function setBase(v) {
+        state.base = (v || "").replace(/\/$/, "");
+        localStorage.setItem("diary.base", state.base);
+        setStatus();
+      }
+      function setToken(t) {
+        state.token = t || "";
+        localStorage.setItem("diary.token", state.token);
+        setStatus();
+      }
+      function headers(extra = {}) {
+        const h = { ...extra };
+        if (state.token) h["Authorization"] = `Bearer ${state.token}`;
+        return h;
+      }
+
+      async function api(path, opts = {}) {
+        if (!state.base) throw new Error("Base URL을 먼저 입력/로그인하세요");
+        const r = await fetch(state.base + path, opts);
+        const ct = r.headers.get("content-type") || "";
+        let b = null;
+        try {
+          b = ct.includes("application/json") ? await r.json() : await r.text();
+        } catch {}
+        if (!r.ok) {
+          const e = new Error("HTTP " + r.status);
+          e.response = b;
+          throw e;
+        }
+        return b;
+      }
+      function goto(v) {
+        show($("view-login"), v === "login");
+        show($("view-list"), v === "list");
+        show($("view-detail"), v === "detail");
+      }
+
+      function renderList(data) {
+        const root = $("list");
+        root.innerHTML = "";
+        const items = (data && data.items) || [];
+        for (const it of items) {
+          const aiEmotion =
+            (it &&
+              ((it.emotion_analysis_report &&
+                (it.emotion_analysis_report.main_emotion ||
+                  it.emotion_analysis_report.mainEmotion)) ||
+                (it.emotion_analysis &&
+                  (it.emotion_analysis.main_emotion ||
+                    it.emotion_analysis.mainEmotion)))) ||
+            null;
+          const div = document.createElement("div");
+          div.className = "item row";
+          div.innerHTML = `
+            <div style="flex:1 1 auto">
+              <div class="row" style="gap:8px;align-items:baseline">
+                <a href="#" class="title" data-id="${it.id}"><b>#${
+            it.id
+          }</b> ${fmt(it.title)}</a>
+                ${
+                  it.main_emotion
+                    ? `<span class="pill">${it.main_emotion}</span>`
+                    : ""
+                }
+              </div>
+              <div class="muted">user:${fmt(it.user_id)} · ${fmt(
+            it.created_at
+          )}</div>
+            </div>
+            <div class="right">${
+              aiEmotion ? `<span class='pill ai'>AI ${aiEmotion}</span>` : ""
+            } <span class="muted">자세히</span></div>`;
+          div.querySelector(".title").onclick = (e) => {
+            e.preventDefault();
+            loadDetail(it.id);
+          };
+          root.appendChild(div);
+        }
+        const m = (data && data.meta) || {};
+        const page = m.page || 1,
+          size = m.page_size || items.length || 0,
+          total = m.total || 0;
+        $("pager").textContent = `page ${page} / size ${size} / total ${total}`;
+        $("btn-prev").onclick = () => {
+          const p = Math.max(1, page - 1);
+          loadList(p);
+        };
+        $("btn-next").onclick = () => {
+          const p = page + 1;
+          const max = Math.ceil((total || 0) / (size || 1));
+          if (p <= max) loadList(p);
+        };
+      }
+
+      function renderDetail(d) {
+        const v = $("view-detail");
+        const aiEmotion =
+          (d &&
+            ((d.emotion_analysis_report &&
+              (d.emotion_analysis_report.main_emotion ||
+                d.emotion_analysis_report.mainEmotion)) ||
+              (d.emotion_analysis &&
+                (d.emotion_analysis.main_emotion ||
+                  d.emotion_analysis.mainEmotion)))) ||
+          null;
+        v.innerHTML = `
+          <h2>다이어리 상세 #${fmt(d.id)}</h2>
+          <div class="muted">user:${fmt(d.user_id)} · ${fmt(d.created_at)} ${
+          d.main_emotion ? "· " + d.main_emotion : ""
+        }</div>
+          ${
+            d.main_emotion || aiEmotion
+              ? `<div class="row" style="gap:6px;margin-top:6px">${
+                  d.main_emotion
+                    ? `<span class='pill'>${d.main_emotion}</span>`
+                    : ""
+                }${
+                  aiEmotion
+                    ? `<span class='pill ai'>AI ${aiEmotion}</span>`
+                    : ""
+                }</div>`
+              : ""
+          }
+          <div class="sep"></div>
+          <h3 style="margin:6px 0 4px">${fmt(d.title)}</h3>
+          <div style="white-space:pre-wrap">${fmt(d.content)}</div>
+          ${
+            Array.isArray(d.tags) && d.tags.length
+              ? `<div class="sep"></div><div class="row">${d.tags
+                  .map((t) => `<span class='pill'>${fmt(t.name || t)}</span>`)
+                  .join(" ")}</div>`
+              : ""
+          }
+          ${
+            Array.isArray(d.image_urls) && d.image_urls.length
+              ? `<div class="sep"></div>${d.image_urls
+                  .map(
+                    (u) =>
+                      `<img class='diary' src='${fmt(
+                        u.url || u
+                      )}' alt='image'/>`
+                  )
+                  .join("")}`
+              : ""
+          }
+          <div class="sep"></div>
+          <div class="row"><button class="btn" id="btn-back">← 목록으로</button></div>`;
+        $("btn-back").onclick = () => goto("list");
+      }
+
+      function renderStats(items, label) {
+        const total =
+          Object.values(items || {}).reduce(
+            (a, b) => a + (Number(b) || 0),
+            0
+          ) || 0;
+        const pos = Number(items["긍정"] || 0),
+          neg = Number(items["부정"] || 0),
+          neu = Number(items["중립"] || 0);
+        const pct = (n) => (total ? Math.round((n * 100) / total) : 0);
+        $("stats-out").innerHTML = `
+          <div class='row' style='gap:8px;flex-wrap:wrap'>
+            <span class='pill'>${label}</span>
+            <span class='pill'>총 ${total}건</span>
+            <span class='pill'>긍정 ${pos} (${pct(pos)}%)</span>
+            <span class='pill'>부정 ${neg} (${pct(neg)}%)</span>
+            <span class='pill'>중립 ${neu} (${pct(neu)}%)</span>
+          </div>
+          <div class='chart'>
+            <div class='bar pos'><span style='width:${pct(pos)}%'></span></div>
+            <div class='bar neg'><span style='width:${pct(neg)}%'></span></div>
+            <div class='bar neu'><span style='width:${pct(neu)}%'></span></div>
+          </div>`;
+      }
+
+      async function doLogin() {
+        const base = $("base").value.trim(),
+          email = $("email").value.trim(),
+          password = $("password").value;
+        if (!base || !email || !password) {
+          $("login-error").textContent = "모든 값을 입력하세요";
+          return;
+        }
+        setBase(base);
+        try {
+          const r = await fetch(state.base + AUTH_LOGIN_PATH, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.detail || "로그인 실패");
+          const tok =
+            d.access_token || d.token || (d.data && d.data.access_token);
+          if (!tok) throw new Error("access_token 없음");
+          setToken(tok);
+          $("login-error").textContent = "";
+          await loadList(1);
+          goto("list");
+        } catch (e) {
+          $("login-error").textContent =
+            (e.response && JSON.stringify(e.response)) ||
+            e.message ||
+            String(e);
+        }
+      }
+
+      async function loadList(page = 1) {
+        goto("list");
+        const uid = $("list-user").value;
+        const size = Number($("list-size").value || 20);
+        const tk = $("list-search").value.trim(); // 🔎 태그 키워드
+        const qs = new URLSearchParams({
+          page: String(page),
+          page_size: String(size),
+        });
+        if (uid) qs.set("user_id", uid);
+        if (tk) qs.set("tag_keyword", tk); // 백엔드 list 핸들러에서 사용하는 파라미터명
+        try {
+          const data = await api("/diaries?" + qs.toString(), {
+            headers: headers(),
+          });
+          renderList(data);
+        } catch (e) {
+          $("list").innerHTML = `<pre class='err'>${
+            e.message
+          }\n${JSON.stringify(e.response || {}, null, 2)}</pre>`;
+        }
+      }
+
+      async function loadDetail(id) {
+        try {
+          const d = await api(`/diaries/${id}`, { headers: headers() });
+          renderDetail(d);
+          goto("detail");
+        } catch (e) {
+          $("view-detail").innerHTML = `<pre class='err'>${
+            e.message
+          }\n${JSON.stringify(e.response || {}, null, 2)}</pre>`;
+          goto("detail");
+        }
+      }
+
+      async function loadStats(days) {
+        const uid = $("list-user").value;
+        const qs = new URLSearchParams();
+        if (uid) qs.set("user_id", uid);
+        if (days) qs.set("days", String(days));
+        try {
+          const d = await api(
+            "/diaries/stats/daily" + (qs.toString() ? "?" + qs.toString() : ""),
+            { headers: headers() }
+          );
+          renderStats((d && d.items) || {}, days ? `최근 ${days}일` : "요약");
+        } catch (e) {
+          $("stats-out").innerHTML = `<pre class='err'>${
+            e.message
+          }\n${JSON.stringify(e.response || {}, null, 2)}</pre>`;
+        }
+      }
+
+      // 이벤트
+      $("btn-login").onclick = doLogin;
+      $("btn-logout").onclick = () => {
+        setToken("");
+        goto("login");
+      };
+      $("btn-refresh").onclick = () =>
+        loadList(Number($("list-page").value || 1));
+      $("list-page").onchange = () =>
+        loadList(Number($("list-page").value || 1));
+      $("btn-stats-today").onclick = () => loadStats(1);
+      $("btn-stats-7").onclick = () => loadStats(7);
+
+      // 🔎 검색 이벤트
+      $("btn-search").onclick = () => loadList(1);
+      $("btn-clear").onclick = () => {
+        $("list-search").value = "";
+        loadList(1);
+      };
+      $("list-search").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") loadList(1);
+      });
+
+      (function init() {
+        $("base").value = state.base;
+        setStatus();
+        if (state.base && state.token) {
+          loadList(1);
+          goto("list");
+        } else {
+          goto("login");
+        }
+      })();
+    </script>
+  </body>
+</html>
