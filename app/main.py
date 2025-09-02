@@ -119,8 +119,8 @@ app.openapi = custom_openapi
 # ─────────────────────────────────────────────────────────────
 # 라우터 등록
 # ─────────────────────────────────────────────────────────────
-app.include_router(ai_router)
 app.include_router(tag_router)
+app.include_router(ai_router)
 app.include_router(user_router)
 app.include_router(diary_router)
 app.include_router(notification_router)
