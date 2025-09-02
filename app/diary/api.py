@@ -201,6 +201,7 @@ async def list_diaries(
     ),
     date_from: Optional[datetime] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
     date_to: Optional[datetime] = Query(None, description="조회 종료일 (YYYY-MM-DD)"),
+    tag_keyword: Optional[str] = Query(None, description="태그 검색어"),
     page: int = Query(1, ge=1, description="페이지 번호(1부터 시작)"),
     page_size: int = Query(20, ge=1, le=100, description="페이지당 항목 수(최대 100)"),
     current_user: User = Depends(get_current_user),
@@ -231,6 +232,7 @@ async def list_diaries(
             if isinstance(main_emotion, MainEmotionType)
             else main_emotion
         ),
+        tag_keyword=tag_keyword,
         date_from=date_from,
         date_to=date_to,
         page=page,
@@ -345,18 +347,24 @@ async def stats_summary(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
     date_from: Optional[datetime] = Query(None, description="조회 시작일"),
     date_to: Optional[datetime] = Query(None, description="조회 종료일"),
-    inferred: bool = Query(
-        True, description="True: main_emotion 미지정 시 emotion_analysis로 추론"
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     감정 통계 요약
     - Query Params: user_id, date_from, date_to, inferred
     - Response: 감정별 카운트 딕셔너리 (예: {"긍정": 3, "부정": 1, "중립": 2})
     """
+    # 1) 권한별 user scope 결정
+    role = current_user.user_roles
+    effective_user_id = resolve_list_scope_or_raise(
+        role=role,
+        current_user_id=current_user.id,
+        user_id_param=user_id,
+    )
+
     return {
         "items": await DiaryService.emotion_stats(
-            user_id=user_id,
+            user_id=effective_user_id,
             date_from=date_from,
             date_to=date_to,
         )
@@ -368,6 +376,7 @@ async def stats_daily(
     user_id: Optional[int] = Query(None, description="특정 사용자 ID"),
     date_to: Optional[date] = Query(None, description="조회 기준일 (YYYY-MM-DD)"),
     days: int = Query(7, ge=1, le=365, description="최근 N일 (기본 7, 오늘 포함)"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     - date_to가 주어지면: [date_to - (days-1) ~ date_to] 범위 일간
@@ -376,6 +385,14 @@ async def stats_daily(
     - 반환: {"period":"daily","from":YYYY-MM-DD,"to":YYYY-MM-DD,"items":[...]}
     """
     zone = ZoneInfo("Asia/Seoul")
+
+    # 1) 권한별 user scope 결정
+    role = current_user.user_roles
+    effective_user_id = resolve_list_scope_or_raise(
+        role=role,
+        current_user_id=current_user.id,
+        user_id_param=user_id,
+    )
 
     # 기준일 결정(없으면 타임존 기준 오늘)
     today = datetime.now(zone).date()
@@ -388,7 +405,7 @@ async def stats_daily(
 
     return {
         "items": await DiaryService.emotion_stats(
-            user_id=user_id,
+            user_id=effective_user_id,
             date_from=dt_from,
             date_to=dt_to,
         )

@@ -91,7 +91,7 @@ async def list_by_filters(
         base = base.filter(created_at__lte=date_to)
     if tag_keyword is not None:
         # M2M(Tag) 조인 → 중복 방지 위해 distinct
-        base = base.filter(tags__name__icontains=tag_keyword).distinct()
+        base = base.filter(tags__name__icontains=tag_keyword)
 
     # 2) 총 개수 (필요 없다면 has_next 방식으로 바꿔도 됨)
     total = await base.count()
