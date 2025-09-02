@@ -6,7 +6,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 import anyio
-from fastapi import logger
+from fastapi import HTTPException, logger
 from pydantic import BaseModel
 from tortoise.transactions import in_transaction
 
@@ -133,6 +133,12 @@ class DiaryService:
 
         # 2) 커밋 이후 AI 분석 (옵션)
         ai_result = None
+        content_txt = (payload.content or "").strip()
+        if content_txt and len(content_txt) < 10:
+            raise HTTPException(
+                status_code=422, detail="내용은 10자 초과로 작성해 주세요."
+            )
+
         if ai and not payload.emotion_analysis_report:
             try:
                 with anyio.move_on_after(6) as scope:
@@ -141,6 +147,7 @@ class DiaryService:
                         user_id=payload.user_id,
                     )
                     ai_result = await ai.analyze_diary_emotion(req)
+
                     # DB 반영: main_emotion + emotion_analysis_report
                     await repository.update_partially(
                         diary,
