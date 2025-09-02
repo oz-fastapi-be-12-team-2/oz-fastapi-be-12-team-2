@@ -9,11 +9,10 @@ from fastapi import HTTPException
 from solapi import SolapiMessageService  # type: ignore
 from solapi.model import RequestMessage  # type: ignore
 
-from app.diary.model import MainEmotionType
 from app.diary.service import DiaryService
 from app.notification import repository
 from app.notification.model import Notification, NotificationType
-from app.user.model import EmotionStats, PeriodType, User, UserNotification
+from app.user.model import User, UserNotification
 
 load_dotenv()
 
@@ -68,12 +67,11 @@ async def get_notification_targets() -> List[tuple[User, str, NotificationType]]
             user_id=user.id
         ).prefetch_related("notification")
 
-        # if not user_notif or not user_notif.notification:
-        #     # 유저가 아직 알림 타입을 선택하지 않은 경우 → 건너뛰기
-        #     continue
-
-        # 유저가 받을 알람 타입 결정
-        notif_type = user_notif.notification.notification_type
+        if not user_notif or not user_notif.notification:
+            # 없을 경우 notification type을 기본값(EMAIL)으로 설정
+            notif_type = NotificationType.EMAIL
+        else:
+            notif_type = user_notif.notification.notification_type
 
         # 오늘 요일 + 타입에 맞는 마스터 알람 찾기
         notif = await Notification.get_or_none(

@@ -59,7 +59,6 @@ class EmotionStats(Model):
         on_delete=fields.CASCADE,
         index=True,
     )
-    period_type = fields.CharEnumField(PeriodType)
     emotion_type = fields.CharEnumField(MainEmotionType)
     frequency = fields.IntField()
     created_at = fields.DatetimeField(auto_now_add=True)
