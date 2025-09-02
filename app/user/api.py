@@ -53,7 +53,11 @@ async def logout(response: Response):
 # 내 프로필 조회
 @router.get("/me", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
-    notif = await UserNotification.get_or_none(user_id=current_user.id).prefetch_related("notification")
+    notif = await UserNotification.get_or_none(
+        user_id=current_user.id
+    ).prefetch_related("notification")
+
+    notification_type = notif.notification.notification_type if notif else None
 
     return {
         "id": current_user.id,
@@ -64,7 +68,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
         "receive_notifications": current_user.receive_notifications,
-        "notification_type": notif.notification.notification_type
+        "notification_type": notification_type,
     }
 
 
